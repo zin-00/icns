@@ -6,6 +6,10 @@ import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
+import { useReactiveStore } from '../../store/reactives/reactive';
+
+const reactive = useReactiveStore();
+const { isLoading } = reactive;
 
 defineProps({
     canResetPassword: {
@@ -23,7 +27,7 @@ const form = useForm({
 });
 
 const submit = () => {
-    form.post(route('login'), {
+    form.post(route('login.post'), {
         onFinish: () => form.reset('password'),
     });
 };

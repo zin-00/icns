@@ -17,7 +17,6 @@ return new class extends Migration
                 $table->float('longitude', 10, 6);
                 $table->string('label');
                 $table->string('type')->default('building');
-                $table->foreignId('facility_id')->nullable()->constrained()->onDelete('cascade');
                 $table->timestamps();
             });
         }

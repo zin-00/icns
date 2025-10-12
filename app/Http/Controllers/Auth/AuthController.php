@@ -5,32 +5,50 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Inertia\Inertia;
 
 class AuthController extends Controller
 {
-    public function login(Request $request){
+
+public function login(Request $request)
+    {
         $credentials = $request->validate([
             'email' => ['required', 'string', 'email', 'max:255'],
             'password' => ['required', 'string', 'min:8'],
         ]);
-        $user = User::findBy('email', $credentials['email']);
-        if (!$user || !Hash::check($credentials['password'], $user->password)) {
-            return Inertia::render('auth/Login', ['error' => 'The provided credentials are incorrect.']);
+
+        if (!auth()->attempt($credentials)) {
+            return Inertia::render('auth/Login', [
+                'error' => 'The provided credentials are incorrect.'
+            ]);
         }
-        // Authentication passed...
-        return Inertia::render('Dashboard');
+
+        $request->session()->regenerate();
+
+        // Redirect to dashboard/admin index
+        return redirect()->route('reports.dashboard');
     }
+
+
     public function logout(Request $request){
+        Auth::logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+       return response()->json([
+            'message' => 'Logged out successfully.'
+        ]);
 
     }
-    public function register(Request $request){
+   public function register(Request $request){
         $credentials = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
         ]);
+
         // Create the user
         $user = User::create([
             'name' => $credentials['name'],
@@ -38,7 +56,8 @@ class AuthController extends Controller
             'password' => Hash::make($credentials['password']),
         ]);
 
-        return Inertia::render('auth/Login');
+        // Redirect to login page with success message
+        return redirect()->route('login')->with('success', 'Registration successful! Please login.');
     }
 
 }
