@@ -22,6 +22,10 @@ export const useReactiveStore = defineStore("reactive", () => {
     const dateFrom = ref('');
     const dateTo = ref('');
     const profile = ref('');
+    
+    // Pathfinding graph structures
+    const pathfindingNodes = ref(new Map())
+    const pathfindingEdges = ref(new Map())
 
     // Boolean
     const isLoading = ref(false)
@@ -89,6 +93,8 @@ export const useReactiveStore = defineStore("reactive", () => {
         message,
         dateFrom,
         dateTo,
+        pathfindingNodes,
+        pathfindingEdges,
 
         // Boolean
         isLoading,
