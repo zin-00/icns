@@ -60,6 +60,10 @@ const {
         facilityMarkers,
         geoJsonLayers,
         navigationInstructions,
+        
+        // Pathfinding
+        pathfindingNodes,
+        pathfindingEdges,
 
     } = toRefs(react);
 
@@ -91,6 +95,180 @@ const markerTypeIcons = {
   'classroom': '🏫',
   'administration': '🏛️',
   'default': '📍'
+}
+
+// ============================================
+// PATHFINDING CLASSES AND FUNCTIONS
+// ============================================
+
+// Priority Queue for A* Algorithm
+class PriorityQueue {
+  constructor() { 
+    this.heap = [] 
+  }
+  
+  enqueue(node, priority) { 
+    this.heap.push({ node, priority })
+    this.heap.sort((a, b) => a.priority - b.priority)
+  }
+  
+  dequeue() { 
+    return this.heap.shift() 
+  }
+  
+  isEmpty() { 
+    return this.heap.length === 0 
+  }
+  
+  contains(node) { 
+    return this.heap.some(element => element.node === node)
+  }
+}
+
+// A* Pathfinding Algorithm Implementation
+class EnhancedAStar {
+  constructor(graphNodes, graphEdges) {
+    this.nodes = graphNodes
+    this.edges = graphEdges
+  }
+
+  heuristic(nodeA, nodeB) {
+    return calculateDistance(nodeA.lat, nodeA.lng, nodeB.lat, nodeB.lng)
+  }
+
+  findPath(startNodeId, endNodeId) {
+    const openSet = new PriorityQueue()
+    const cameFrom = new Map()
+    const gScore = new Map()
+    const fScore = new Map()
+
+    for (const nodeId of this.nodes.keys()) {
+      gScore.set(nodeId, Infinity)
+      fScore.set(nodeId, Infinity)
+    }
+
+    gScore.set(startNodeId, 0)
+    fScore.set(startNodeId, this.heuristic(this.nodes.get(startNodeId), this.nodes.get(endNodeId)))
+    openSet.enqueue(startNodeId, fScore.get(startNodeId))
+
+    while (!openSet.isEmpty()) {
+      const current = openSet.dequeue().node
+
+      if (current === endNodeId) {
+        return this.reconstructPath(cameFrom, current)
+      }
+
+      const neighbors = this.edges.get(current) || []
+      for (const neighbor of neighbors) {
+        const tentativeGScore = gScore.get(current) + neighbor.cost
+        if (tentativeGScore < (gScore.get(neighbor.nodeId) || Infinity)) {
+          cameFrom.set(neighbor.nodeId, current)
+          gScore.set(neighbor.nodeId, tentativeGScore)
+          fScore.set(neighbor.nodeId, tentativeGScore + this.heuristic(this.nodes.get(neighbor.nodeId), this.nodes.get(endNodeId)))
+          if (!openSet.contains(neighbor.nodeId)) {
+            openSet.enqueue(neighbor.nodeId, fScore.get(neighbor.nodeId))
+          }
+        }
+      }
+    }
+    return null // No path found
+  }
+
+  reconstructPath(cameFrom, current) {
+    const path = [current]
+    while (cameFrom.has(current)) {
+      current = cameFrom.get(current)
+      path.unshift(current)
+    }
+    return path
+  }
+}
+
+// Build pathfinding graph from GeoJSON LineStrings
+const buildPathfindingGraph = () => {
+  if (!privateRoutes.value || !privateRoutes.value.features) {
+    console.warn('⚠️ No private routes available for graph building')
+    return
+  }
+
+  const nodes = new Map()
+  const edges = new Map()
+  let nodeIdCounter = 0
+
+  // Process each LineString feature
+  privateRoutes.value.features.forEach((feature) => {
+    if (feature.geometry.type === 'LineString') {
+      const coords = feature.geometry.coordinates
+      const nodeIds = []
+
+      // Create nodes for each point in the LineString
+      coords.forEach(([lng, lat]) => {
+        const nodeId = `node_${nodeIdCounter++}`
+        nodes.set(nodeId, { lat, lng })
+        nodeIds.push(nodeId)
+      })
+
+      // Create edges between consecutive nodes
+      for (let i = 0; i < nodeIds.length - 1; i++) {
+        const fromId = nodeIds[i]
+        const toId = nodeIds[i + 1]
+        const fromNode = nodes.get(fromId)
+        const toNode = nodes.get(toId)
+        const cost = calculateDistance(fromNode.lat, fromNode.lng, toNode.lat, toNode.lng)
+
+        // Add bidirectional edges
+        if (!edges.has(fromId)) edges.set(fromId, [])
+        if (!edges.has(toId)) edges.set(toId, [])
+
+        edges.get(fromId).push({ nodeId: toId, cost })
+        edges.get(toId).push({ nodeId: fromId, cost })
+      }
+    }
+  })
+
+  // Connect nodes that are very close to each other (intersection points)
+  const nodeEntries = Array.from(nodes.entries())
+  for (let i = 0; i < nodeEntries.length; i++) {
+    for (let j = i + 1; j < nodeEntries.length; j++) {
+      const [id1, node1] = nodeEntries[i]
+      const [id2, node2] = nodeEntries[j]
+      const distance = calculateDistance(node1.lat, node1.lng, node2.lat, node2.lng)
+
+      // If nodes are within 5 meters, connect them (likely intersection)
+      if (distance < 5 && distance > 0) {
+        if (!edges.has(id1)) edges.set(id1, [])
+        if (!edges.has(id2)) edges.set(id2, [])
+
+        // Check if edge doesn't already exist
+        const existsInId1 = edges.get(id1).some(e => e.nodeId === id2)
+        const existsInId2 = edges.get(id2).some(e => e.nodeId === id1)
+
+        if (!existsInId1) edges.get(id1).push({ nodeId: id2, cost: distance })
+        if (!existsInId2) edges.get(id2).push({ nodeId: id1, cost: distance })
+      }
+    }
+  }
+
+  pathfindingNodes.value = nodes
+  pathfindingEdges.value = edges
+  
+  console.log(`✅ Built pathfinding graph: ${nodes.size} nodes, ${edges.size} edges`)
+}
+
+// Find nearest graph node to a given location
+const findNearestNode = (lat, lng) => {
+  let nearestNodeId = null
+  let minDistance = Infinity
+
+  for (const [nodeId, node] of pathfindingNodes.value.entries()) {
+    const distance = calculateDistance(lat, lng, node.lat, node.lng)
+    if (distance < minDistance) {
+      minDistance = distance
+      nearestNodeId = nodeId
+    }
+  }
+  
+  return { nodeId: nearestNodeId, distance: minDistance }
 }
 
 const debounce = (func, delay) => {
@@ -309,7 +487,7 @@ const findClickedLineString = (clickPoint, features, threshold = 30) => {
 }
 
 // --- Generate navigation instructions ---
-const generateInstructions = (route, isPrivatePath) => {
+const generateInstructions = (route, isPrivatePath, routeType = 'public') => {
   const instructions = []
 
   instructions.push({
@@ -319,27 +497,49 @@ const generateInstructions = (route, isPrivatePath) => {
   })
 
   let cumulativeDistance = 0
-  for (let i = 0; i < route.length - 1; i++) {
+  const totalSegments = route.length - 1
+  
+  for (let i = 0; i < totalSegments; i++) {
     const segmentDist = calculateDistance(
       route[i][0], route[i][1],
       route[i + 1][0], route[i + 1][1]
     )
     cumulativeDistance += segmentDist
 
-    if (i === Math.floor(route.length * 0.3)) {
-      instructions.push({
-        icon: '➡️',
-        text: isPrivatePath ? 'Continue on public road' : 'Continue straight',
-        distance: `${Math.round(cumulativeDistance)} m`
-      })
-    }
-
-    if (i === Math.floor(route.length * 0.6) && isPrivatePath) {
-      instructions.push({
-        icon: '🏫',
-        text: 'Enter private campus path',
-        distance: `${Math.round(cumulativeDistance)} m`
-      })
+    // Add waypoint instructions at key positions
+    if (routeType === 'hybrid' || isPrivatePath) {
+      if (i === Math.floor(totalSegments * 0.25)) {
+        instructions.push({
+          icon: '➡️',
+          text: 'Continue on public road',
+          distance: `${Math.round(cumulativeDistance)} m`
+        })
+      }
+      
+      if (i === Math.floor(totalSegments * 0.5)) {
+        instructions.push({
+          icon: '🏫',
+          text: 'Enter campus private path',
+          distance: `${Math.round(cumulativeDistance)} m`
+        })
+      }
+      
+      if (i === Math.floor(totalSegments * 0.75)) {
+        instructions.push({
+          icon: '🚶',
+          text: 'Continue through campus',
+          distance: `${Math.round(cumulativeDistance)} m`
+        })
+      }
+    } else {
+      // Public route only
+      if (i === Math.floor(totalSegments * 0.5)) {
+        instructions.push({
+          icon: '➡️',
+          text: 'Continue straight',
+          distance: `${Math.round(cumulativeDistance)} m`
+        })
+      }
     }
   }
 
@@ -371,7 +571,8 @@ const calculateETA = (distanceMeters) => {
 // --- Get public route from OSRM ---
 const getPublicRoute = async (start, end) => {
   try {
-    const url = `https://router.project-osrm.org/route/v1/driving/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson`
+    // Use 'foot' profile for walking directions (more appropriate for campus navigation)
+    const url = `https://router.project-osrm.org/route/v1/foot/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson`
     const response = await fetch(url)
     const data = await response.json()
 
@@ -408,93 +609,161 @@ const getPublicRoute = async (start, end) => {
 
 
 
-// --- Main routing function ---
+// --- Main routing function with A* pathfinding ---
 const createRoute = async (clickLatLng) => {
   if (!userLocation.value) {
-    console.error('⚠️ Waiting for GPS location...')
+    toast.error('⚠️ Waiting for GPS location...')
     return
   }
 
-  if (!privateRoutes.value || !privateRoutes.value.features) {
-    console.error('⚠️ No route data available')
+  if (!pathfindingNodes.value || pathfindingNodes.value.size === 0) {
+    console.warn('⚠️ Pathfinding graph not built yet')
     return
   }
 
-  // Clear previous route (but NOT facility markers)
+  // Clear previous route
   if (routePolyline.value) map.value.removeLayer(routePolyline.value)
   if (destinationMarker.value) map.value.removeLayer(destinationMarker.value)
-  map.value.closePopup(); // Fix: Close popups to prevent zoom errors
+  map.value.closePopup()
 
   const userPos = { lat: userLocation.value.lat, lng: userLocation.value.lng }
+  const destPos = { lat: clickLatLng.lat, lng: clickLatLng.lng }
+  
+  // Find nearest private path nodes to user and destination
+  const nearestToUser = findNearestNode(userPos.lat, userPos.lng)
+  const nearestToDest = findNearestNode(destPos.lat, destPos.lng)
+  
+  console.log(`📍 Nearest to user: ${nearestToUser.distance.toFixed(1)}m, Nearest to dest: ${nearestToDest.distance.toFixed(1)}m`)
+
   let fullRoute = []
   let isPrivatePath = false
-  let finalDestination = { lat: clickLatLng.lat, lng: clickLatLng.lng } // Default to click
+  let finalDestination = destPos
+  let routeType = 'public' // 'public', 'private', or 'hybrid'
 
-  // Check if clicked on LineString (private path)
-  const clickedFeature = findClickedLineString(clickLatLng, privateRoutes.value.features, 30) // Threshold in meters
+  // Decision logic: Use private paths if destination or user is close to private network
+  const USE_PRIVATE_THRESHOLD = 100 // meters - if within 100m, consider using private paths
+  const userNearPrivate = nearestToUser.distance < USE_PRIVATE_THRESHOLD
+  const destNearPrivate = nearestToDest.distance < USE_PRIVATE_THRESHOLD
 
-  if (clickedFeature) {
-    console.log('🔴 Routing via private path')
+  if (userNearPrivate && destNearPrivate) {
+    // Both near private network - use A* pathfinding through private paths
+    console.log('🔵 Using A* pathfinding through private campus paths')
     isPrivatePath = true
+    routeType = 'hybrid'
 
-    const lineCoords = clickedFeature.geometry.coordinates
-    const nearestToClick = getNearestPointOnLine({ lat: clickLatLng.lat, lng: clickLatLng.lng }, lineCoords)
+    try {
+      // Create A* instance and find path
+      const aStar = new EnhancedAStar(pathfindingNodes.value, pathfindingEdges.value)
+      const nodePath = aStar.findPath(nearestToUser.nodeId, nearestToDest.nodeId)
 
-    const lineStart = {
-      lat: lineCoords[0][1],
-      lng: lineCoords[0][0]
+      if (nodePath && nodePath.length > 0) {
+        // Step 1: OSRM from user to first private node (if not already very close)
+        const firstNode = pathfindingNodes.value.get(nodePath[0])
+        if (nearestToUser.distance > 5) {
+          const publicToEntry = await getPublicRoute(userPos, firstNode)
+          if (publicToEntry) {
+            publicToEntry.forEach(p => fullRoute.push([p.lat, p.lng]))
+          } else {
+            fullRoute.push([userPos.lat, userPos.lng])
+          }
+        } else {
+          fullRoute.push([userPos.lat, userPos.lng])
+        }
+
+        // Step 2: Follow A* path through private network
+        nodePath.forEach(nodeId => {
+          const node = pathfindingNodes.value.get(nodeId)
+          fullRoute.push([node.lat, node.lng])
+        })
+
+        // Step 3: OSRM from last private node to destination (if not already very close)
+        const lastNode = pathfindingNodes.value.get(nodePath[nodePath.length - 1])
+        if (nearestToDest.distance > 5) {
+          const publicToExit = await getPublicRoute(lastNode, destPos)
+          if (publicToExit) {
+            publicToExit.slice(1).forEach(p => fullRoute.push([p.lat, p.lng]))
+          } else {
+            fullRoute.push([destPos.lat, destPos.lng])
+          }
+        } else {
+          fullRoute.push([destPos.lat, destPos.lng])
+        }
+
+        finalDestination = destPos
+        console.log(`✅ A* found path with ${nodePath.length} nodes`)
+      } else {
+        console.warn('❌ A* could not find path, falling back to public route')
+        const publicRoute = await getPublicRoute(userPos, destPos)
+        if (publicRoute) {
+          publicRoute.forEach(p => fullRoute.push([p.lat, p.lng]))
+          finalDestination = publicRoute[publicRoute.length - 1]
+        } else {
+          fullRoute.push([userPos.lat, userPos.lng], [destPos.lat, destPos.lng])
+        }
+        isPrivatePath = false
+        routeType = 'public'
+      }
+    } catch (error) {
+      console.error('Error in A* pathfinding:', error)
+      // Fallback to public route
+      const publicRoute = await getPublicRoute(userPos, destPos)
+      if (publicRoute) {
+        publicRoute.forEach(p => fullRoute.push([p.lat, p.lng]))
+        finalDestination = publicRoute[publicRoute.length - 1]
+      }
+      routeType = 'public'
     }
+  } else if (destNearPrivate && !userNearPrivate) {
+    // Only destination near private network
+    console.log('🟡 Routing to private campus area')
+    isPrivatePath = true
+    routeType = 'hybrid'
 
-    // Step 1: Public route to start of LineString
-    const publicSegment = await getPublicRoute(userPos, lineStart)
+    const destNode = pathfindingNodes.value.get(nearestToDest.nodeId)
+    
+    // OSRM from user to nearest private node
+    const publicSegment = await getPublicRoute(userPos, destNode)
     if (publicSegment) {
       publicSegment.forEach(p => fullRoute.push([p.lat, p.lng]))
     } else {
-      fullRoute.push([userPos.lat, userPos.lng])
-      fullRoute.push([lineStart.lat, lineStart.lng])
+      fullRoute.push([userPos.lat, userPos.lng], [destNode.lat, destNode.lng])
     }
 
-    // Step 2: Follow private LineString to nearest point
-    for (let i = 0; i <= nearestToClick.index; i++) {
-      const [lng, lat] = lineCoords[i]
-      fullRoute.push([lat, lng])
+    // Short walk from private node to exact destination if needed
+    if (nearestToDest.distance > 5) {
+      fullRoute.push([destPos.lat, destPos.lng])
     }
-
-    // NEW: Instead of jumping to exact click (which may be off-line), snap to nearest point on line for accuracy
-    // If you want exact click, uncomment the next line and comment the one after
-    // fullRoute.push([clickLatLng.lat, clickLatLng.lng])
-    const snappedDest = nearestToClick.coord // Use nearest point on line as endpoint
-    fullRoute.push([snappedDest[1], snappedDest[0]]) // [lat, lng]
-    finalDestination = { lat: snappedDest[1], lng: snappedDest[0] } // Update marker to snapped end
-
-    console.log('Private path snapped destination:', finalDestination) // Debug log
+    
+    finalDestination = destPos
   } else {
+    // Pure public route
     console.log('🟢 Public roads only')
+    routeType = 'public'
 
-    const destPos = { lat: clickLatLng.lat, lng: clickLatLng.lng }
     const publicRoute = await getPublicRoute(userPos, destPos)
-
     if (publicRoute) {
       publicRoute.forEach(p => fullRoute.push([p.lat, p.lng]))
-      // NEW: Set final destination to the ACTUAL end of OSRM route (snapped point)
-      const routeEnd = publicRoute[publicRoute.length - 1]
-      finalDestination = { lat: routeEnd.lat, lng: routeEnd.lng }
-      console.log('Public route snapped destination:', finalDestination, 'vs original click:', clickLatLng) // Debug log
+      finalDestination = publicRoute[publicRoute.length - 1]
     } else {
-      fullRoute.push([userPos.lat, userPos.lng])
-      fullRoute.push([destPos.lat, destPos.lng])
-      finalDestination = destPos // Fallback to click if no route
+      fullRoute.push([userPos.lat, userPos.lng], [destPos.lat, destPos.lng])
+      finalDestination = destPos
     }
   }
 
-  // Draw route using fullRoute (now ends at snapped/accurate point)
+  // Draw route
+  const routeColors = {
+    'public': '#4CAF50',
+    'private': '#FF6B6B',
+    'hybrid': '#2196F3'
+  }
+
   routePolyline.value = L.polyline(fullRoute, {
-    color: isPrivatePath ? '#2196F3' : '#4CAF50',
+    color: routeColors[routeType],
     weight: 6,
     opacity: 0.8
   }).addTo(map.value)
 
-  // Place marker at FINAL DESTINATION (snapped end of route, not raw click)
+  // Place destination marker
   destinationMarker.value = L.marker([finalDestination.lat, finalDestination.lng], {
     title: 'Destination',
     icon: L.divIcon({
@@ -505,7 +774,7 @@ const createRoute = async (clickLatLng) => {
     })
   }).addTo(map.value)
 
-  // Calculate distance from route (not raw click)
+  // Calculate total distance
   let totalDistance = 0
   for (let i = 0; i < fullRoute.length - 1; i++) {
     totalDistance += calculateDistance(
@@ -519,13 +788,22 @@ const createRoute = async (clickLatLng) => {
     : `${Math.round(totalDistance)} m`
 
   const eta = calculateETA(totalDistance)
-  routeInfo.value = `${isPrivatePath ? '🟢 Public → 🔴 Private' : '🟢 Public Roads'}\n📏 ${distanceText}\n⏱️ ${eta.minutes} min\n🕐 Arrive at ${eta.arrivalTime}`
+  
+  const routeLabels = {
+    'public': '🟢 Public Roads',
+    'private': '🔴 Campus Paths',
+    'hybrid': '🟢 Public → 🔴 Campus'
+  }
+  
+  routeInfo.value = `${routeLabels[routeType]}\n📏 ${distanceText}\n⏱️ ${eta.minutes} min\n🕐 Arrive at ${eta.arrivalTime}`
 
-  navigationInstructions.value = generateInstructions(fullRoute, isPrivatePath)
+  navigationInstructions.value = generateInstructions(fullRoute, isPrivatePath, routeType)
   showInstructions.value = true
 
-  // Fit to route bounds (marker will now align with route end)
+  // Fit map to route
   map.value.fitBounds(routePolyline.value.getBounds(), { padding: [50, 50] })
+  
+  toast.success(`Route calculated: ${distanceText}`)
 }
 
 
@@ -747,11 +1025,60 @@ const loadPrivateRoutes = async () => {
     if (!res.ok) throw new Error('Failed to load path.json')
     privateRoutes.value = await res.json()
     console.log('✅ Loaded path.json:', privateRoutes.value)
+    
+    // Build pathfinding graph from loaded routes
+    buildPathfindingGraph()
+    
     isLoaded.value = true
   } catch (err) {
     console.error('❌ Error loading path.json:', err)
-    console.error('Failed to load campus paths')
+    toast.error('Failed to load campus paths')
   }
+}
+
+// --- Refresh routes and rebuild pathfinding graph (for real-time updates) ---
+const refreshPrivateRoutesOnMap = () => {
+  if (!map.value || !privateRoutes.value || !privateRoutes.value.features) {
+    console.warn('Cannot refresh private routes: Map or data not ready')
+    return
+  }
+  
+  // Step 1: Clear existing private route layers
+  geoJsonLayers.value.forEach(layer => {
+    if (map.value) {
+      map.value.removeLayer(layer)
+    }
+  })
+  geoJsonLayers.value = [] // Reset the array
+  console.log(`🗑️ Cleared old private route layers`)
+
+  // Step 2: Rebuild pathfinding graph with updated routes
+  buildPathfindingGraph()
+
+  // Step 3: Re-add private route layers to map
+  privateRoutes.value.features.forEach((feature) => {
+    if (feature.geometry && feature.geometry.type === 'LineString') {
+      const layer = L.geoJSON(feature, {
+        style: {
+          color: '#FF6B6B', // Red for private paths
+          weight: 5,
+          opacity: 0.7,
+          dashArray: '8, 4' // Dashed style
+        }
+      }).addTo(map.value)
+      
+      // Make layers clickable for routing
+      layer.on('click', (e) => {
+        L.DomEvent.stopPropagation(e)
+        createRoute(e.latlng)
+      })
+      
+      geoJsonLayers.value.push(layer)
+    }
+  })
+
+  console.log(`✅ Added ${privateRoutes.value.features.length} new private route layers`)
+  toast.success('Campus paths updated!')
 }
 
 // --- Initialize map ---
