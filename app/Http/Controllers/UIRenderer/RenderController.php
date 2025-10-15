@@ -15,7 +15,7 @@ use Inertia\Inertia;
 class RenderController extends Controller
 {
     public function login(){
-        return Inertia::render('auth/Login');
+        return Inertia::render('auth/LoginPage');
     }
     public function register(){
         return Inertia::render('auth/Register');

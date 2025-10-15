@@ -9,11 +9,16 @@ import {
     XMarkIcon,
     ArrowPathIcon,
     CalendarIcon,
-    CheckCircleIcon
+    ChartBarIcon,
+    ChartPieIcon,
+    HomeModernIcon,
+    ChatBubbleLeftEllipsisIcon,
+    MagnifyingGlassIcon
 } from '@heroicons/vue/24/outline';
 import { router } from '@inertiajs/vue3';
 import { useToast } from 'vue-toastification';
 import axios from 'axios';
+
 
 const props = defineProps({
     reports: {
@@ -55,15 +60,15 @@ const getTypeBadgeStyles = (type) => {
     return styles[type] || styles.usage;
 };
 
-// Get type icon
+// Get type icon component
 const getTypeIcon = (type) => {
-    const icons = {
-        usage: '📊',
-        feedback: '💬',
-        facility: '🏢',
-        search: '🔍'
-    };
-    return icons[type] || '📄';
+  const icons = {
+    usage: ChartPieIcon,
+    feedback: ChatBubbleLeftEllipsisIcon,
+    facility: HomeModernIcon,
+    search: MagnifyingGlassIcon
+  };
+  return icons[type] || DocumentIcon;
 };
 
 // Format date
@@ -190,7 +195,11 @@ const openReport = (reportId) => {
                     <!-- Card Header with Type Badge -->
                     <div class="p-4 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
                         <div class="flex items-start justify-between gap-3 mb-3">
-                            <div class="text-3xl">{{ getTypeIcon(report.type) }}</div>
+                            <component
+                                :is="getTypeIcon(report.type)"
+                                class="w-8 h-8"
+                                :class="getTypeBadgeStyles(report.type).icon"
+                            />
                             <span
                                 :class="[
                                     'inline-flex px-2.5 py-1 text-xs font-semibold rounded-full capitalize',

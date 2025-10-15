@@ -1,7 +1,7 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import MapComponent from '../../Components/map/MapComponent.vue';
 import MapBox from '../../Components/map/MapBox.vue';
+import AdminMap from '../../Components/map/AdminMap.vue';
 </script>
 <template>
     <AuthenticatedLayout>
@@ -9,7 +9,7 @@ import MapBox from '../../Components/map/MapBox.vue';
             <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
                 <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
                     <!-- <MapComponent /> -->
-                    <MapBox :isAdmin="true" />
+                    <AdminMap :isAdmin="true" />
                 </div>
             </div>
         </div>

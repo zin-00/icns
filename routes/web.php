@@ -7,6 +7,7 @@ use App\Http\Controllers\Guest\GuestController;
 use App\Http\Controllers\Logs\SearchLogsController;
 use App\Http\Controllers\Marker\markerController;
 use App\Http\Controllers\Notes\NoteController;
+use App\Http\Controllers\Route\RouteController;
 use App\Http\Controllers\UIRenderer\RenderController;
 use App\Models\Facility;
 use App\Models\Marker;
@@ -20,21 +21,27 @@ use Inertia\Inertia;
 
 
 
+
 Route::get('/', function () {
-    $facilities = Facility::with(['marker.notes'])->get();
+    $facilities = Facility::with(['marker.notes.guest'])->get();
 
     return Inertia::render('guest/Index', [
         'facilities' => $facilities,
     ]);
 });
-
 Route::post('/create/feedback', [FeedbackController::class, 'store'])->name('feedback.create');
 Route::post('/search-logs', [SearchLogsController::class, 'store'])->name('search.create');
 
+Route::get('/private-routes', [RouteController::class, 'index']);
+Route::get('/routes/export/geojson-pub', [RouteController::class, 'exportGeoJSON']);
+
 
 Route::post('/guests', [GuestController::class, 'store'])->name('guest');
+
 Route::get('/login', [RenderController::class, 'login'])->name('login');
+Route::post('/auth/check-email', [AuthController::class, 'isEmailExist'])->name('email.exist');
 Route::post('/login', [AuthController::class, 'login'])->name('login.post');
+Route::post('/auth/login', [AuthController::class, 'login'])->name('auth.login');
 
 Route::get('/register', [RenderController::class, 'register'])->name('register.get');
 Route::post('/register', [AuthController::class, 'register'])->name('register.post');
@@ -56,9 +63,12 @@ Route::middleware('auth')->group(function () {
     require __DIR__.'/logs/searchlog.php';
     require __DIR__.'/auth/auth.php';
     require __DIR__.'/report/report.php';
+    require __DIR__.'/route/route.php';
+    require __DIR__.'/auth/profile/profile.php';
+    require __DIR__.'/note/note.php';
 
     Route::get('/search-logs', [RenderController::class, 'searchlog'])->name('logs.index');
 
 });
 
-require __DIR__.'/note/note.php';
+

@@ -21,7 +21,16 @@ export const useReactiveStore = defineStore("reactive", () => {
     const message = ref('');
     const dateFrom = ref('');
     const dateTo = ref('');
-    const profile = ref('');
+    const profile = ref('walking');
+    const finder = ref(null);
+    const grid = ref(null);
+    const routingControl = ref(null);
+    const userHeading = ref(0)
+    const drawnRoute = ref(null)
+    const routeToDelete = ref(null)
+
+
+
 
     // Boolean
     const isLoading = ref(false)
@@ -34,15 +43,29 @@ export const useReactiveStore = defineStore("reactive", () => {
     const showSearchResults = ref(false)
     const isSearching = ref(false)
     const showNoteModal = ref(false)
+    const showNotesModal = ref(false)
     const isSavingNote = ref(false)
     const isSavingFeedback = ref(false)
     const isGuestInfoComplete = ref(false)
     const isReviewModalOpen = ref(false)
+    const showMarkerModal = ref(false)
+    const showRouteModal = ref(false)
+    const clickAddModeEnabled = ref(false)
+    const drawnRouteMode = ref(false)
+    const isSubmitting = ref(false)
+    const isDrawing = ref(false)
+    const editRouteMode = ref(false)
+    const showEditRouteModal = ref(false)
+    const showDeleteConfirmModal = ref(false)
+    const showPointEditModal = ref(false)
+    const showMarkerDragModal = ref(false)
+
 
 
     // Selected
     const selected = ref(null)
     const selectedLocation = ref(null)
+    const selectedRoute = ref(null)
 
     // Data Arrays
     const items = ref([])
@@ -51,6 +74,37 @@ export const useReactiveStore = defineStore("reactive", () => {
     const facilityMarkers = ref([])
     const geoJsonLayers = ref([])
     const filteredLocations = ref([])
+    const routePoints = ref([])
+    const editMarkers = ref([])
+
+    // Data Object
+    const editMarker = ref({
+        id: null,
+        latitude: '',
+        longitude: '',
+        label: '',
+        type: ''
+    })
+    const newMarker = ref({
+        latitude: '',
+        longitude: '',
+        label: '',
+        type: ''
+    })
+    const editedPointData = ref({
+        index: null,
+        oldCoords: { lat: null, lng: null },
+        newCoords: { lat: null, lng: null },
+        routeId: null
+    })
+    const markerDragData = ref({
+        id: null,
+        oldCoords: { lat: null, lng: null },
+        newCoords: { lat: null, lng: null },
+        label: '',
+        type: ''
+    })
+
 
 
     // Pagination
@@ -89,6 +143,13 @@ export const useReactiveStore = defineStore("reactive", () => {
         message,
         dateFrom,
         dateTo,
+        finder,
+        grid,
+        routingControl,
+        profile,
+        userHeading,
+        drawnRoute,
+        routeToDelete,
 
         // Boolean
         isLoading,
@@ -105,12 +166,23 @@ export const useReactiveStore = defineStore("reactive", () => {
         isGuestInfoComplete,
         isReviewModalOpen,
         isSavingFeedback,
-
-
+        showMarkerModal,
+        showRouteModal,
+        clickAddModeEnabled,
+        drawnRouteMode,
+        isSubmitting,
+        isDrawing,
+        editRouteMode,
+        showEditRouteModal,
+        showDeleteConfirmModal,
+        showPointEditModal,
+        showMarkerDragModal,
+        showNotesModal,
 
         // Selected
         selected,
         selectedLocation,
+        selectedRoute,
 
         // Data Arrays
         items,
@@ -119,6 +191,14 @@ export const useReactiveStore = defineStore("reactive", () => {
         facilityMarkers,
         geoJsonLayers,
         filteredLocations,
+        routePoints,
+        editMarkers,
+
+        // Data Object
+        editMarker,
+        newMarker,
+        editedPointData,
+        markerDragData,
 
         // Pagination
         paginated,

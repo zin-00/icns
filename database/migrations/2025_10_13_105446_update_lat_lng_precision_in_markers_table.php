@@ -11,12 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('search_logs', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('guest_id')->constrained()->onDelete('cascade');
-            $table->string('query');
-            $table->timestamp('search_at')->nullable();
-            $table->timestamps();
+        Schema::table('markers', function (Blueprint $table) {
+            $table->decimal('latitude', 10, 8)->change();
+            $table->decimal('longitude', 11, 8)->change();
         });
     }
 
@@ -25,6 +22,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('search_logs');
+        Schema::table('markers', function (Blueprint $table) {
+            //
+        });
     }
 };

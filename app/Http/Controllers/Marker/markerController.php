@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Marker;
 
+use App\Events\MainEvent;
 use App\Http\Controllers\Controller;
 use App\Models\Marker;
 use Illuminate\Http\Request;
@@ -13,7 +14,8 @@ class markerController extends Controller
         $markers = Marker::all();
         return response()->json($markers);
     }
-       public function store(Request $request)
+
+    public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
             'latitude' => 'required|numeric|between:-90,90',
@@ -36,24 +38,63 @@ class markerController extends Controller
             'type' => $request->type,
         ]);
 
+        broadcast(new MainEvent('marker', 'create', $marker));
+
         return response()->json([
             'message' => 'New marker saved!',
             'marker' => $marker
         ]);
     }
 
-    public function destroy(Request $request, $id){
-        $marker = Marker::findOrFail($id);
+    public function update(Request $request, $id)
+    {
+        $marker = Marker::find($id);
 
-        if(!$marker){
+        if (!$marker) {
             return response()->json([
-                'message' => 'It does not exist.'
+                'message' => 'Marker not found.'
             ], 404);
         }
 
+        $validator = Validator::make($request->all(), [
+            'latitude' => 'nullable|numeric|between:-90,90',
+            'longitude' => 'nullable|numeric|between:-180,180',
+            'label' => 'nullable|string|max:255',
+            'type' => 'nullable|string|max:255',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $marker->update($request->only(['latitude', 'longitude', 'label', 'type']));
+        broadcast(new MainEvent('marker', 'update', $marker));
+
         return response()->json([
-            'marker' => $marker,
-            'message' => 'Marker has been removed'
+            'message' => 'Marker updated successfully!',
+            'marker' => $marker
+        ]);
+    }
+
+    public function destroy(Request $request, $id){
+        $marker = Marker::find($id);
+
+        if(!$marker){
+            return response()->json([
+                'message' => 'Marker not found.'
+            ], 404);
+        }
+
+        $marker->delete();
+
+        broadcast(new MainEvent('marker', 'delete', $marker));
+
+        return response()->json([
+            'message' => 'Marker has been removed successfully',
+            'deleted_marker' => $marker // Return the deleted marker for reference
         ]);
     }
 }

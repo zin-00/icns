@@ -1,35 +1,25 @@
 <script setup>
 import { ref, toRefs } from 'vue';
 import { Link } from '@inertiajs/vue3';
-import Dropdown from '@/Components/Dropdown.vue';
-import DropdownLink from '@/Components/DropdownLink.vue';
-import NavLink from '@/Components/NavLink.vue';
-import ResponsiveNavLink from '@/Components/ResponsiveNavLink.vue';
-import { BsUpcScan } from '@kalimahapps/vue-icons';
+import { BxSolidNavigation, AkDashboard, ClBuilding01, BsChatDots, BsFileText, BsMap, BsSearch, BsPersonCircle, BsBoxArrowRight, BsDash } from '@kalimahapps/vue-icons';
 import { route } from 'ziggy-js';
 import axios from 'axios';
 import { useReactiveStore } from '../store/reactives/reactive';
 import Loader from '../Components/loader/Loader.vue';
-import { BxSolidNavigation } from '@kalimahapps/vue-icons';
+import { BuildingOffice2Icon } from '@heroicons/vue/24/outline';
 
 const reactive = useReactiveStore();
 const { isLoading } = toRefs(reactive);
 
 const message = ref('Processing logout...');
-const showingNavigationDropdown = ref(false);
+const mobileMenuOpen = ref(false);
 
 const logout = async () => {
   try {
     isLoading.value = true;
     message.value = 'Processing logout...';
 
-    const response = await axios.post(route('logout'), {}, {
-      headers: {
-        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-        'X-Requested-With': 'XMLHttpRequest',
-        'Accept': 'application/json',
-      },
-    });
+    const response = await axios.post(route('logout'));
 
     message.value = response.data.message || 'Logged out successfully. Redirecting to login page...';
 
@@ -45,168 +35,140 @@ const logout = async () => {
     }, 2000);
   }
 };
+
+const navItems = [
+  { name: 'Overview', route: 'reports.dashboard', icon: AkDashboard },
+  { name: 'Facilities', route: 'facility.get', icon: ClBuilding01 },
+  { name: 'Feedbacks', route: 'feedback.index', icon: BsChatDots },
+  { name: 'Notes', route: 'notes.index', icon: BsFileText },
+  { name: 'Campus Map', route: 'map.get', icon: BsMap },
+  { name: 'Search Logs', route: 'logs.index', icon: BsSearch },
+];
 </script>
 
 <template>
   <div>
     <div class="min-h-screen bg-gray-100">
-      <nav class="border-b border-gray-100 bg-white">
-        <!-- Primary Navigation Menu -->
-        <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div class="flex h-16 justify-between">
-            <div class="flex">
-              <!-- Logo -->
-              <div class="flex shrink-0 items-center">
+      <!-- Mobile Header -->
+      <div class="lg:hidden fixed top-0 left-0 right-0 z-30 bg-white border-b border-gray-200">
+        <div class="flex items-center justify-between px-4 py-3">
+          <Link :href="route('dashboard')" class="flex items-center gap-2">
+            <BxSolidNavigation class="h-8 w-8 text-black"/>
+            <span class="text-lg font-semibold text-gray-800">CAMPUS NAVIGATOR</span>
+          </Link>
+          <button
+            @click="mobileMenuOpen = !mobileMenuOpen"
+            class="p-2 text-gray-600 hover:bg-gray-100 rounded-md"
+          >
+            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                :class="{ hidden: mobileMenuOpen, 'inline-flex': !mobileMenuOpen }"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M4 6h16M4 12h16M4 18h16"
+              />
+              <path
+                :class="{ hidden: !mobileMenuOpen, 'inline-flex': mobileMenuOpen }"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        </div>
+      </div>
 
-                <Link :href="route('dashboard')" class="flex items-center gap-2">
-                   <BxSolidNavigation class=" h-10 w-10 text-black"/>
-                  <span class="text-xl font-semibold text-gray-800">ASSCAT NAVIGATOR</span>
-                </Link>
-              </div>
+      <!-- Sidebar -->
+      <aside
+        :class="[
+          'fixed top-0 left-0 z-40 h-screen w-64 bg-white border-r border-gray-200 transition-transform',
+          'lg:translate-x-0',
+          mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
+        ]"
+      >
+        <!-- Logo -->
+        <div class="hidden lg:flex items-center gap-2 px-6 py-5 border-b border-gray-200">
+          <BxSolidNavigation class="h-10 w-10 text-black"/>
+          <span class="text-xl font-semibold text-gray-800">CAMPUS NAVIGATOR</span>
+        </div>
 
-              <!-- Navigation Links -->
-              <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
-                <NavLink :href="route('reports.dashboard')" :active="route().current('reports.dashboard')">
-                  Overview
-                </NavLink>
-                <NavLink :href="route('facility.get')" :active="route().current('facility.get')">
-                  Facilities
-                </NavLink>
-                <NavLink :href="route('feedback.index')" :active="route().current('feedback.index')">
-                  Feedbacks
-                </NavLink>
-                <NavLink :href="route('notes.index')" :active="route().current('notes.index')">
-                  Notes
-                </NavLink>
-                <NavLink :href="route('map.get')" :active="route().current('map.get')">
-                  Campus Map
-                </NavLink>
-                <NavLink :href="route('logs.index')" :active="route().current('logs.index')">
-                    Search Logs
-                </NavLink>
+        <!-- Navigation -->
+        <nav class="flex-1 px-4 py-6 space-y-1 overflow-y-auto mt-16 lg:mt-0">
+          <Link
+            v-for="item in navItems"
+            :key="item.route"
+            :href="route(item.route)"
+            :class="[
+              'flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors',
+              route().current(item.route)
+                ? 'bg-gray-900 text-white'
+                : 'text-gray-700 hover:bg-gray-100'
+            ]"
+            @click="mobileMenuOpen = false"
+          >
+            <component :is="item.icon" class="h-5 w-5" />
+            {{ item.name }}
+          </Link>
+        </nav>
+
+        <!-- User Section -->
+        <div class="absolute bottom-0 left-0 right-0 border-t border-gray-200 bg-white">
+          <div class="px-4 py-4">
+            <div class="flex items-center gap-3 mb-3">
+              <BsPersonCircle class="h-8 w-8 text-gray-600" />
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-medium text-gray-900 truncate">
+                  {{ $page.props.auth.user.name }}
+                </p>
+                <p class="text-xs text-gray-500 truncate">
+                  {{ $page.props.auth.user.email }}
+                </p>
               </div>
             </div>
-
-            <div class="hidden sm:ms-6 sm:flex sm:items-center">
-              <!-- Settings Dropdown -->
-              <div class="relative ms-3">
-                <Dropdown align="right" width="48">
-                  <template #trigger>
-                    <span class="inline-flex rounded-md">
-                      <button
-                        type="button"
-                        class="inline-flex items-center rounded-md border border-transparent bg-white px-3 py-2 text-sm font-medium leading-4 text-gray-500 transition duration-150 ease-in-out hover:text-gray-700 focus:outline-none"
-                      >
-                        {{ $page.props.auth.user.name }}
-
-                        <svg
-                          class="-me-0.5 ms-2 h-4 w-4"
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 20 20"
-                          fill="currentColor"
-                        >
-                          <path
-                            fill-rule="evenodd"
-                            d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                            clip-rule="evenodd"
-                          />
-                        </svg>
-                      </button>
-                    </span>
-                  </template>
-
-                  <template #content>
-                    <DropdownLink> Profile </DropdownLink>
-                    <DropdownLink @click="logout"> Log Out </DropdownLink>
-                  </template>
-                </Dropdown>
-              </div>
-            </div>
-
-            <!-- Hamburger -->
-            <div class="-me-2 flex items-center sm:hidden">
-              <button
-                @click="showingNavigationDropdown = !showingNavigationDropdown"
-                class="inline-flex items-center justify-center rounded-md p-2 text-gray-400 transition duration-150 ease-in-out hover:bg-gray-100 hover:text-gray-500 focus:bg-gray-100 focus:text-gray-500 focus:outline-none"
+            <div class="space-y-1">
+              <Link
+                :href="route('profile.index')"
+                class="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md"
+                @click="mobileMenuOpen = false"
               >
-                <svg class="h-6 w-6" stroke="currentColor" fill="none" viewBox="0 0 24 24">
-                  <path
-                    :class="{
-                      hidden: showingNavigationDropdown,
-                      'inline-flex': !showingNavigationDropdown,
-                    }"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M4 6h16M4 12h16M4 18h16"
-                  />
-                  <path
-                    :class="{
-                      hidden: !showingNavigationDropdown,
-                      'inline-flex': showingNavigationDropdown,
-                    }"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
+                <BsPersonCircle class="h-4 w-4" />
+                Profile
+              </Link>
+              <button
+                @click="logout"
+                class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md"
+              >
+                <BsBoxArrowRight class="h-4 w-4" />
+                Log Out
               </button>
             </div>
           </div>
         </div>
+      </aside>
 
-        <!-- Responsive Navigation Menu -->
-        <div
-          :class="{ block: showingNavigationDropdown, hidden: !showingNavigationDropdown }"
-          class="sm:hidden"
-        >
-          <div class="space-y-1 pb-3 pt-2">
-            <ResponsiveNavLink :href="route('dashboard')" :active="route().current('dashboard')">
-              Dashboard
-            </ResponsiveNavLink>
-            <ResponsiveNavLink :href="route('facility.get')" :active="route().current('facility.get')">
-              Facilities
-            </ResponsiveNavLink>
-            <ResponsiveNavLink :href="route('feedback.index')" :active="route().current('feedback.index')">
-              Feedbacks
-            </ResponsiveNavLink>
-            <ResponsiveNavLink :href="route('notes.index')" :active="route().current('notes.index')">
-              Notes
-            </ResponsiveNavLink>
-            <ResponsiveNavLink :href="route('map.get')" :active="route().current('map.get')">
-              Campus Map
-            </ResponsiveNavLink>
+      <!-- Mobile Overlay -->
+      <div
+        v-if="mobileMenuOpen"
+        @click="mobileMenuOpen = false"
+        class="fixed inset-0 z-30 bg-gray-900 bg-opacity-50 lg:hidden"
+      ></div>
+
+      <!-- Main Content -->
+      <div class="lg:pl-64 pt-16 lg:pt-0">
+        <!-- Page Heading -->
+        <header v-if="$slots.header" class="bg-white shadow">
+          <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+            <slot name="header" />
           </div>
+        </header>
 
-          <!-- Responsive Settings Options -->
-          <div class="border-t border-gray-200 pb-1 pt-4">
-            <div class="px-4">
-              <div class="text-base font-medium text-gray-800">
-                {{ $page.props.auth.user.name }}
-              </div>
-              <div class="text-sm font-medium text-gray-500">{{ $page.props.auth.user.email }}</div>
-            </div>
-
-            <div class="mt-3 space-y-1">
-              <ResponsiveNavLink> Profile </ResponsiveNavLink>
-              <ResponsiveNavLink @click="logout"> Log Out </ResponsiveNavLink>
-            </div>
-          </div>
-        </div>
-      </nav>
-
-      <!-- Page Heading -->
-      <header v-if="$slots.header" class="bg-white shadow">
-        <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-          <slot name="header" />
-        </div>
-      </header>
-
-      <!-- Page Content -->
-      <main>
-        <slot />
-      </main>
+        <!-- Page Content -->
+        <main>
+          <slot />
+        </main>
+      </div>
     </div>
 
     <Loader :is-loading="isLoading" :message="message" />

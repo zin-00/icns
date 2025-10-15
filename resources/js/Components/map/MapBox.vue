@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, watch, computed } from 'vue'
+import { ref, onMounted, watch, computed, nextTick } from 'vue'
 import { MagnifyingGlassIcon, XMarkIcon, MapPinIcon, PencilIcon, TrashIcon } from '@heroicons/vue/24/outline'
 import Modal from '../Modal.vue'
 import TextInput from '../TextInput.vue'
@@ -45,6 +45,21 @@ const userHeading = ref(0)
 const drawnRoute = ref(null)
 const routePoints = ref([])
 const isDrawing = ref(false)
+const editRouteMode = ref(false)
+const selectedRoute = ref(null)
+const editMarkers = ref([])
+const showEditRouteModal = ref(false)
+const showDeleteConfirmModal = ref(false)
+const routeToDelete = ref(null)
+
+// Enhanced editing variables
+const showPointEditModal = ref(false)
+const editedPointData = ref({
+  index: null,
+  oldCoords: { lat: null, lng: null },
+  newCoords: { lat: null, lng: null },
+  routeId: null
+})
 
 // New marker form data
 const newMarker = ref({
@@ -54,8 +69,43 @@ const newMarker = ref({
   type: ''
 })
 
+// Edit marker form data
+const editMarker = ref({
+  id: null,
+  latitude: '',
+  longitude: '',
+  label: '',
+  type: ''
+})
+
+// Marker drag data
+const showMarkerDragModal = ref(false)
+const markerDragData = ref({
+  id: null,
+  oldCoords: { lat: null, lng: null },
+  newCoords: { lat: null, lng: null },
+  label: '',
+  type: ''
+})
+
+const showEditMarkerModal = ref(false)
+const showDeleteMarkerConfirmModal = ref(false)
+const markerToDelete = ref(null)
+
+// Store dragging marker instance
+let draggingMarkerInstance = null
+
 // New route form data
 const newRoute = ref({
+  start_location: '',
+  end_location: '',
+  estimated_time: '',
+  path_data: []
+})
+
+// Edit route form data
+const editRoute = ref({
+  id: null,
   start_location: '',
   end_location: '',
   estimated_time: '',
@@ -72,6 +122,216 @@ const markerTypes = [
   'Other'
 ]
 
+// Enable marker dragging during edit
+const enableMarkerDragging = (markerId) => {
+  const markerObj = markerInstances.value.find(m => m._markerData && m._markerData.id === markerId)
+  if (!markerObj) return
+
+  // Store original coordinates
+  const originalLatLng = markerObj.getLatLng()
+
+  // Make marker draggable
+  markerObj.dragging.enable()
+  markerObj.setOpacity(0.8)
+
+  draggingMarkerInstance = markerObj
+
+  // Handle drag start
+  markerObj.on('dragstart', () => {
+    markerObj.setOpacity(0.6)
+  })
+
+  // Handle drag end
+  markerObj.on('dragend', (e) => {
+    const newLatLng = e.target.getLatLng()
+    markerObj.setOpacity(1)
+    markerObj.dragging.disable()
+
+    const marker = locations.value.find(m => m.id === markerId)
+    if (marker) {
+      showMarkerDragModal.value = true
+      markerDragData.value = {
+        id: markerId,
+        oldCoords: {
+          lat: parseFloat(originalLatLng.lat.toFixed(6)),
+          lng: parseFloat(originalLatLng.lng.toFixed(6))
+        },
+        newCoords: {
+          lat: parseFloat(newLatLng.lat.toFixed(6)),
+          lng: parseFloat(newLatLng.lng.toFixed(6))
+        },
+        label: marker.name,
+        type: marker.department
+      }
+    }
+  })
+
+  toast.info('Drag marker to reposition')
+}
+
+// Confirm marker reposition and open edit modal
+const confirmMarkerReposition = () => {
+  // Set the edit marker data with new coordinates
+  editMarker.value = {
+    id: markerDragData.value.id,
+    latitude: markerDragData.value.newCoords.lat.toString(),
+    longitude: markerDragData.value.newCoords.lng.toString(),
+    label: markerDragData.value.label,
+    type: markerDragData.value.type
+  }
+
+  // Close the drag modal and open the edit modal
+  showMarkerDragModal.value = false
+  showEditMarkerModal.value = true
+
+  toast.info('Please review and save changes in the edit form')
+}
+
+// Revert marker position
+const revertMarkerPosition = () => {
+  if (draggingMarkerInstance) {
+    draggingMarkerInstance.setLatLng([
+      markerDragData.value.oldCoords.lat,
+      markerDragData.value.oldCoords.lng
+    ])
+  }
+
+  closeMarkerDragModal()
+  toast.info('Marker position reverted')
+}
+
+// Close marker drag modal
+const closeMarkerDragModal = () => {
+  showMarkerDragModal.value = false
+  markerDragData.value = {
+    id: null,
+    oldCoords: { lat: null, lng: null },
+    newCoords: { lat: null, lng: null },
+    label: '',
+    type: ''
+  }
+  draggingMarkerInstance = null
+}
+
+// Window functions for edit/delete (called from marker popups)
+window.editMarker = (markerId) => {
+  const marker = locations.value.find(m => m.id === markerId)
+  if (!marker) return
+
+  // Enable dragging for this marker
+  enableMarkerDragging(markerId)
+}
+
+window.deleteMarker = (markerId) => {
+  const marker = locations.value.find(m => m.id === markerId)
+  if (!marker) return
+
+  markerToDelete.value = marker
+  showDeleteMarkerConfirmModal.value = true
+}
+
+// Save edited marker
+const saveEditedMarker = async () => {
+  if (isSubmitting.value) return
+
+  if (!editMarker.value.label || !editMarker.value.type) {
+    toast.error('Please fill in all required fields')
+    return
+  }
+
+  isSubmitting.value = true
+
+  try {
+    //  Parse coordinates as floats before sending to API
+    const response = await axios.put(`/markers/${editMarker.value.id}`, {
+      latitude: parseFloat(editMarker.value.latitude),
+      longitude: parseFloat(editMarker.value.longitude),
+      label: editMarker.value.label,
+      type: editMarker.value.type
+    })
+
+    toast.success('Marker updated successfully!')
+
+    //  Update the marker in locations array with correct structure
+    const index = locations.value.findIndex(m => m.id === editMarker.value.id)
+    if (index !== -1) {
+      locations.value[index] = {
+        id: editMarker.value.id,
+        name: editMarker.value.label,
+        lng: parseFloat(editMarker.value.longitude),
+        lat: parseFloat(editMarker.value.latitude),
+        department: editMarker.value.type
+      }
+    }
+
+    //  Refresh markers on map - remove all and re-add with updated data
+    markerInstances.value.forEach(m => {
+      if (m && m.remove) {
+        m.remove()
+      }
+    })
+    markerInstances.value = []
+
+    // Re-add all markers with updated positions
+    locations.value.forEach(location => {
+      addMarkerToMap(location)
+    })
+
+    closeEditMarkerModal()
+
+    //  Clear drag data after successful save
+    draggingMarkerInstance = null
+
+  } catch (error) {
+    console.error('Error updating marker:', error)
+    toast.error(error.response?.data?.message || 'Failed to update marker')
+  } finally {
+    isSubmitting.value = false
+  }
+}
+
+// Delete marker
+const confirmDeleteMarker = async () => {
+  if (!markerToDelete.value || isSubmitting.value) return
+
+  isSubmitting.value = true
+
+  try {
+    await axios.delete(`/markers/${markerToDelete.value.id}`)
+
+    toast.success('Marker deleted successfully!')
+
+    // Remove from locations array
+    locations.value = locations.value.filter(m => m.id !== markerToDelete.value.id)
+
+    // Refresh markers on map
+    markerInstances.value.forEach(m => m.remove())
+    markerInstances.value = []
+    locations.value.forEach(location => {
+      addMarkerToMap(location)
+    })
+
+    closeDeleteMarkerModal()
+
+  } catch (error) {
+    console.error('Error deleting marker:', error)
+    toast.error(error.response?.data?.message || 'Failed to delete marker')
+  } finally {
+    isSubmitting.value = false
+  }
+}
+
+// Close modals
+const closeEditMarkerModal = () => {
+  showEditMarkerModal.value = false
+  editMarker.value = { id: null, latitude: '', longitude: '', label: '', type: '' }
+}
+
+const closeDeleteMarkerModal = () => {
+  showDeleteMarkerConfirmModal.value = false
+  markerToDelete.value = null
+}
+
 // Use markers from props
 const locations = ref([])
 const savedRoutes = ref([])
@@ -81,6 +341,7 @@ const filteredLocations = ref([])
 
 // Store marker instances
 const markerInstances = ref([])
+const routePolylines = ref([])
 
 // Fetch markers from backend
 const fetchMarkers = async () => {
@@ -145,15 +406,371 @@ const displayRoute = (route) => {
   const polyline = L.polyline(pathCoordinates, {
     color: '#3B82F6',
     weight: 4,
-    opacity: 0.7
+    opacity: 0.7,
+    routeId: route.id
   }).addTo(map.value)
 
   polyline.bindPopup(`
-    <div class="p-2">
-      <h3 class="font-bold text-sm">${route.start_location} → ${route.end_location}</h3>
-      <p class="text-xs text-gray-600">Est. Time: ${route.estimated_time}</p>
+    <div class="p-3">
+      <h3 class="font-bold text-sm mb-2">${route.start_location} → ${route.end_location}</h3>
+      <p class="text-xs text-gray-600 mb-3">Est. Time: ${route.estimated_time}</p>
+      ${props.isAdmin ? `
+        <div class="flex gap-2">
+          <button onclick="window.editRoute(${route.id})" class="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700">
+            Edit
+          </button>
+          <button onclick="window.deleteRoute(${route.id})" class="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700">
+            Delete
+          </button>
+        </div>
+      ` : ''}
     </div>
   `)
+
+  routePolylines.value.push({ id: route.id, polyline, data: route })
+}
+
+// Enhanced route editing functionality
+window.editRoute = (routeId) => {
+  const routeObj = routePolylines.value.find(r => r.id === routeId)
+  if (!routeObj) return
+
+  selectedRoute.value = routeObj
+  editRoute.value = {
+    id: routeObj.data.id,
+    start_location: routeObj.data.start_location,
+    end_location: routeObj.data.end_location,
+    estimated_time: routeObj.data.estimated_time,
+    path_data: [...routeObj.data.path_data]
+  }
+
+  enableRouteEditing(routeObj)
+}
+
+// Enhanced route editing mode with better dragging
+const enableRouteEditing = (routeObj) => {
+  editRouteMode.value = true
+  drawRouteMode.value = false
+  clickAddModeEnabled.value = false
+
+  // Change polyline color to indicate editing
+  routeObj.polyline.setStyle({ color: '#EF4444', weight: 5 })
+
+  // Add enhanced draggable markers at each point
+  editMarkers.value = []
+  editRoute.value.path_data.forEach((point, index) => {
+    const marker = L.marker([point.lat, point.lng], {
+      draggable: true,
+      icon: L.divIcon({
+        className: 'edit-route-marker',
+        html: `<div style="background: #EF4444; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.4); cursor: move; display: flex; align-items: center; justify-content: center; color: white; font-size: 10px; font-weight: bold;">${index + 1}</div>`,
+        iconSize: [20, 20],
+        iconAnchor: [10, 10]
+      })
+    }).addTo(map.value)
+
+    // Store original position for comparison
+    const originalLatLng = L.latLng(point.lat, point.lng)
+
+    // Enhanced drag handling with visual feedback
+    marker.on('dragstart', () => {
+      marker.setOpacity(0.7)
+    })
+
+    marker.on('drag', (e) => {
+      const newLatLng = e.target.getLatLng()
+      editRoute.value.path_data[index] = { lat: newLatLng.lat, lng: newLatLng.lng }
+      updateEditPolyline()
+    })
+
+    marker.on('dragend', (e) => {
+      marker.setOpacity(1)
+      const newLatLng = e.target.getLatLng()
+
+      // Show modal with old and new coordinates
+      showPointEditModal.value = true
+      editedPointData.value = {
+        index: index,
+        oldCoords: { lat: originalLatLng.lat, lng: originalLatLng.lng },
+        newCoords: { lat: newLatLng.lat, lng: newLatLng.lng },
+        routeId: editRoute.value.id
+      }
+    })
+
+    // Right-click to remove point
+    marker.on('contextmenu', (e) => {
+      e.originalEvent.preventDefault()
+      if (editRoute.value.path_data.length > 2) {
+        editRoute.value.path_data.splice(index, 1)
+        marker.remove()
+        editMarkers.value.splice(index, 1)
+        updateEditPolyline()
+        updateMarkerNumbers()
+        toast.info('Point removed')
+      } else {
+        toast.error('Route must have at least 2 points')
+      }
+    })
+
+    editMarkers.value.push(marker)
+  })
+
+  // Enhanced adding new points by clicking on the polyline
+  routeObj.polyline.on('click', (e) => {
+    const clickLatLng = e.latlng
+
+    // Find the closest segment
+    let minDist = Infinity
+    let insertIndex = 0
+
+    for (let i = 0; i < editRoute.value.path_data.length - 1; i++) {
+      const p1 = L.latLng(editRoute.value.path_data[i].lat, editRoute.value.path_data[i].lng)
+      const p2 = L.latLng(editRoute.value.path_data[i + 1].lat, editRoute.value.path_data[i + 1].lng)
+      const dist = L.LineUtil.pointToSegmentDistance(
+        map.value.latLngToLayerPoint(clickLatLng),
+        map.value.latLngToLayerPoint(p1),
+        map.value.latLngToLayerPoint(p2)
+      )
+
+      if (dist < minDist) {
+        minDist = dist
+        insertIndex = i + 1
+      }
+    }
+
+    // Insert new point
+    editRoute.value.path_data.splice(insertIndex, 0, { lat: clickLatLng.lat, lng: clickLatLng.lng })
+
+    // Add new marker with enhanced styling
+    const marker = L.marker([clickLatLng.lat, clickLatLng.lng], {
+      draggable: true,
+      icon: L.divIcon({
+        className: 'edit-route-marker',
+        html: `<div style="background: #10B981; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.4); cursor: move; display: flex; align-items: center; justify-content: center; color: white; font-size: 10px; font-weight: bold;">${insertIndex + 1}</div>`,
+        iconSize: [20, 20],
+        iconAnchor: [10, 10]
+      })
+    }).addTo(map.value)
+
+    // Store original position for comparison
+    const originalLatLng = L.latLng(clickLatLng.lat, clickLatLng.lng)
+
+    // Enhanced drag handling for new points
+    marker.on('dragstart', () => {
+      marker.setOpacity(0.7)
+    })
+
+    marker.on('drag', (e) => {
+      const newLatLng = e.target.getLatLng()
+      editRoute.value.path_data[insertIndex] = { lat: newLatLng.lat, lng: newLatLng.lng }
+      updateEditPolyline()
+    })
+
+    marker.on('dragend', (e) => {
+      marker.setOpacity(1)
+      const newLatLng = e.target.getLatLng()
+
+      // Show modal with old and new coordinates
+      showPointEditModal.value = true
+      editedPointData.value = {
+        index: insertIndex,
+        oldCoords: { lat: originalLatLng.lat, lng: originalLatLng.lng },
+        newCoords: { lat: newLatLng.lat, lng: newLatLng.lng },
+        routeId: editRoute.value.id
+      }
+    })
+
+    marker.on('contextmenu', (e) => {
+      e.originalEvent.preventDefault()
+      if (editRoute.value.path_data.length > 2) {
+        editRoute.value.path_data.splice(insertIndex, 1)
+        marker.remove()
+        editMarkers.value.splice(insertIndex, 1)
+        updateEditPolyline()
+        updateMarkerNumbers()
+        toast.info('Point removed')
+      } else {
+        toast.error('Route must have at least 2 points')
+      }
+    })
+
+    editMarkers.value.splice(insertIndex, 0, marker)
+    updateEditPolyline()
+    updateMarkerNumbers()
+    toast.success('Point added')
+  })
+
+  showEditRouteModal.value = true
+  toast.info('Drag points to edit. Right-click to remove. Click line to add points.')
+}
+
+// Update marker numbers after adding/removing points
+const updateMarkerNumbers = () => {
+  editMarkers.value.forEach((marker, index) => {
+    marker.setIcon(L.divIcon({
+      className: 'edit-route-marker',
+      html: `<div style="background: #EF4444; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.4); cursor: move; display: flex; align-items: center; justify-content: center; color: white; font-size: 10px; font-weight: bold;">${index + 1}</div>`,
+      iconSize: [20, 20],
+      iconAnchor: [10, 10]
+    }))
+  })
+}
+
+// Update polyline during editing
+const updateEditPolyline = () => {
+  if (!selectedRoute.value) return
+
+  const pathCoordinates = editRoute.value.path_data.map(point => [point.lat, point.lng])
+  selectedRoute.value.polyline.setLatLngs(pathCoordinates)
+}
+
+// Save point changes after confirmation
+const savePointChanges = () => {
+  // The changes are already applied to editRoute.value.path_data
+  // We just need to close the modal
+  showPointEditModal.value = false
+  editedPointData.value = {
+    index: null,
+    oldCoords: { lat: null, lng: null },
+    newCoords: { lat: null, lng: null },
+    routeId: null
+  }
+  toast.success('Point position updated')
+}
+
+// Revert point to original position
+const revertPointChanges = () => {
+  if (editedPointData.value.index !== null) {
+    // Revert to original position
+    editRoute.value.path_data[editedPointData.value.index] = {
+      lat: editedPointData.value.oldCoords.lat,
+      lng: editedPointData.value.oldCoords.lng
+    }
+
+    // Update the marker position
+    if (editMarkers.value[editedPointData.value.index]) {
+      editMarkers.value[editedPointData.value.index].setLatLng([
+        editedPointData.value.oldCoords.lat,
+        editedPointData.value.oldCoords.lng
+      ])
+    }
+
+    // Update the polyline
+    updateEditPolyline()
+
+    showPointEditModal.value = false
+    editedPointData.value = {
+      index: null,
+      oldCoords: { lat: null, lng: null },
+      newCoords: { lat: null, lng: null },
+      routeId: null
+    }
+    toast.info('Point position reverted')
+  }
+}
+
+// Save edited route
+const saveEditedRoute = async () => {
+  if (isSubmitting.value) return
+
+  if (!editRoute.value.start_location || !editRoute.value.end_location || !editRoute.value.estimated_time) {
+    toast.error('Please fill in all required fields')
+    return
+  }
+
+  isSubmitting.value = true
+
+  try {
+    const response = await axios.put(`/routes/${editRoute.value.id}`, {
+      start_location: editRoute.value.start_location,
+      end_location: editRoute.value.end_location,
+      estimated_time: editRoute.value.estimated_time,
+      path_data: editRoute.value.path_data
+    })
+
+    toast.success('Route updated successfully!')
+
+    // Update the route in savedRoutes array
+    const index = savedRoutes.value.findIndex(r => r.id === editRoute.value.id)
+    if (index !== -1) {
+      savedRoutes.value[index] = response.data
+    }
+
+    // Update the route data in routePolylines
+    if (selectedRoute.value) {
+      selectedRoute.value.data = response.data
+      selectedRoute.value.polyline.setStyle({ color: '#3B82F6', weight: 4 })
+    }
+
+    cancelEditRoute()
+
+  } catch (error) {
+    console.error('Error updating route:', error)
+    toast.error(error.response?.data?.message || 'Failed to update route')
+  } finally {
+    isSubmitting.value = false
+  }
+}
+
+// Cancel route editing
+const cancelEditRoute = () => {
+  if (selectedRoute.value) {
+    selectedRoute.value.polyline.setStyle({ color: '#3B82F6', weight: 4 })
+    selectedRoute.value.polyline.off('click')
+  }
+
+  editMarkers.value.forEach(marker => marker.remove())
+  editMarkers.value = []
+
+  editRouteMode.value = false
+  selectedRoute.value = null
+  showEditRouteModal.value = false
+  showPointEditModal.value = false
+
+  editRoute.value = {
+    id: null,
+    start_location: '',
+    end_location: '',
+    estimated_time: '',
+    path_data: []
+  }
+}
+
+// Delete route
+window.deleteRoute = (routeId) => {
+  const routeObj = routePolylines.value.find(r => r.id === routeId)
+  if (!routeObj) return
+
+  routeToDelete.value = routeObj
+  showDeleteConfirmModal.value = true
+}
+
+const confirmDeleteRoute = async () => {
+  if (!routeToDelete.value || isSubmitting.value) return
+
+  isSubmitting.value = true
+
+  try {
+    await axios.delete(`/routes/${routeToDelete.value.id}`)
+
+    toast.success('Route deleted successfully!')
+
+    // Remove from map
+    routeToDelete.value.polyline.remove()
+
+    // Remove from arrays
+    routePolylines.value = routePolylines.value.filter(r => r.id !== routeToDelete.value.id)
+    savedRoutes.value = savedRoutes.value.filter(r => r.id !== routeToDelete.value.id)
+
+    showDeleteConfirmModal.value = false
+    routeToDelete.value = null
+
+  } catch (error) {
+    console.error('Error deleting route:', error)
+    toast.error(error.response?.data?.message || 'Failed to delete route')
+  } finally {
+    isSubmitting.value = false
+  }
 }
 
 // Initialize compass tracking
@@ -227,6 +844,7 @@ onMounted(() => {
 
   // Add OpenStreetMap tiles
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom:50,
     attribution: '© OpenStreetMap contributors'
   }).addTo(map.value)
 
@@ -265,6 +883,7 @@ const getUserLocation = () => {
 // Add marker to map
 const addMarkerToMap = (location) => {
   const marker = L.marker([location.lat, location.lng], {
+    draggable: false, // Disable dragging so edit button works immediately
     icon: L.icon({
       iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
       iconSize: [25, 41],
@@ -277,9 +896,21 @@ const addMarkerToMap = (location) => {
       <div class="p-2">
         <h3 class="font-bold text-sm">${location.name}</h3>
         <p class="text-xs text-gray-600">${location.department}</p>
+        ${props.isAdmin ? `
+          <div class="flex gap-2 mt-2">
+            <button onclick="window.editMarker(${location.id})" class="px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700">
+              Edit
+            </button>
+            <button onclick="window.deleteMarker(${location.id})" class="px-2 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700">
+              Delete
+            </button>
+          </div>
+        ` : ''}
       </div>
     `)
 
+  // Store marker data for reference
+  marker._markerData = location
   markerInstances.value.push(marker)
 
   if (!props.isAdmin) {
@@ -319,6 +950,11 @@ const toggleClickAddMode = () => {
 
 // Toggle draw route mode
 const toggleDrawRouteMode = () => {
+  if (editRouteMode.value) {
+    toast.error('Please finish editing current route first')
+    return
+  }
+
   drawRouteMode.value = !drawRouteMode.value
   if (drawRouteMode.value) {
     clickAddModeEnabled.value = false
@@ -411,8 +1047,8 @@ const submit = async () => {
 
   try {
     const response = await axios.post('/markers', {
-      latitude: newMarker.value.latitude,
-      longitude: newMarker.value.longitude,
+      latitude: parseFloat(newMarker.value.latitude),
+      longitude: parseFloat(newMarker.value.longitude),
       label: newMarker.value.label,
       type: newMarker.value.type
     })
@@ -492,6 +1128,11 @@ const closeRouteModal = () => {
   }
 
   routePoints.value = []
+}
+
+const closeDeleteModal = () => {
+  showDeleteConfirmModal.value = false
+  routeToDelete.value = null
 }
 
 // Watch for search query
@@ -620,6 +1261,7 @@ const clearSearch = () => {
           'flex items-center gap-2 px-4 py-2 rounded-lg shadow-lg font-medium text-sm transition-all',
           drawRouteMode ? 'bg-blue-600 text-white' : 'bg-white text-gray-700'
         ]"
+        :disabled="editRouteMode"
       >
         <PencilIcon class="h-5 w-5" />
         <span class="hidden sm:inline">{{ drawRouteMode ? 'Drawing...' : 'Draw Route' }}</span>
@@ -640,11 +1282,27 @@ const clearSearch = () => {
       >
         Cancel
       </button>
+
+      <button
+        v-if="editRouteMode"
+        @click="showEditRouteModal = true"
+        class="flex items-center gap-2 px-4 py-2 rounded-lg shadow-lg font-medium text-sm bg-blue-600 text-white"
+      >
+        Save Changes
+      </button>
+
+      <button
+        v-if="editRouteMode"
+        @click="cancelEditRoute"
+        class="flex items-center gap-2 px-4 py-2 rounded-lg shadow-lg font-medium text-sm bg-gray-600 text-white"
+      >
+        Cancel Edit
+      </button>
     </div>
 
     <!-- Add Marker Modal -->
     <Modal :show="showMarkerModal" @close="closeMarkerModal">
-      <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-auto">
+      <div class="relative bg-white rounded-lg shadow-xl w-full max-w-2xl mx-auto">
         <div class="px-6 py-4 border-b border-gray-200">
           <h3 class="text-lg font-semibold text-gray-900">Create New Marker</h3>
         </div>
@@ -727,6 +1385,277 @@ const clearSearch = () => {
         </div>
       </div>
     </Modal>
+
+    <!-- Edit Route Modal -->
+    <Modal :show="showEditRouteModal" @close="showEditRouteModal = false">
+      <div class="relative bg-white rounded-lg shadow-xl w-full max-w-2xl mx-auto">
+        <div class="px-6 py-4 border-b border-gray-200">
+          <h3 class="text-lg font-semibold text-gray-900">Edit Route</h3>
+        </div>
+
+        <div class="px-6 py-5">
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-900 mb-2">Start Location</label>
+              <TextInput v-model="editRoute.start_location" type="text" placeholder="e.g., Main Gate" class="w-full" />
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-900 mb-2">End Location</label>
+              <TextInput v-model="editRoute.end_location" type="text" placeholder="e.g., Library" class="w-full" />
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-900 mb-2">Estimated Time</label>
+              <TextInput v-model="editRoute.estimated_time" type="text" placeholder="e.g., 5 minutes" class="w-full" />
+            </div>
+
+            <div class="bg-blue-50 border border-blue-200 rounded-md p-3">
+              <p class="text-xs text-blue-800 font-medium mb-1">Editing Tips:</p>
+              <ul class="text-xs text-blue-700 space-y-1">
+                <li>• Drag red markers to adjust route points</li>
+                <li>• Click on the route line to add new points</li>
+                <li>• Right-click on markers to remove points</li>
+                <li>• After dragging, a modal will show coordinate changes</li>
+              </ul>
+            </div>
+
+            <div class="text-sm text-gray-600">
+              Route points: {{ editRoute.path_data.length }}
+            </div>
+          </div>
+        </div>
+
+        <div class="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-3">
+          <button @click="cancelEditRoute" class="px-5 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md">
+            Cancel
+          </button>
+          <button @click="saveEditedRoute" :disabled="!editRoute.start_location || !editRoute.end_location || !editRoute.estimated_time || isSubmitting" class="px-5 py-2 text-sm font-medium text-white bg-gray-900 rounded-md disabled:bg-gray-400">
+            {{ isSubmitting ? 'Saving...' : 'Save Changes' }}
+          </button>
+        </div>
+      </div>
+    </Modal>
+
+    <!-- Point Edit Confirmation Modal -->
+    <Modal :show="showPointEditModal" @close="savePointChanges">
+      <div class="relative bg-white rounded-lg shadow-xl w-full max-w-md mx-auto">
+        <div class="px-6 py-4 border-b border-gray-200">
+          <h3 class="text-lg font-semibold text-gray-900">Point Position Updated</h3>
+        </div>
+
+        <div class="px-6 py-5">
+          <p class="text-sm text-gray-700 mb-4">
+            You've moved point <span class="font-bold">#{{ editedPointData.index + 1 }}</span> in the route.
+          </p>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div class="bg-red-50 border border-red-200 rounded-md p-3">
+              <h4 class="text-sm font-medium text-red-800 mb-2">Original Position</h4>
+              <div class="text-xs text-red-700">
+                <div>Lat: {{ editedPointData.oldCoords.lat?.toFixed(6) }}</div>
+                <div>Lng: {{ editedPointData.oldCoords.lng?.toFixed(6) }}</div>
+              </div>
+            </div>
+
+            <div class="bg-green-50 border border-green-200 rounded-md p-3">
+              <h4 class="text-sm font-medium text-green-800 mb-2">New Position</h4>
+              <div class="text-xs text-green-700">
+                <div>Lat: {{ editedPointData.newCoords.lat?.toFixed(6) }}</div>
+                <div>Lng: {{ editedPointData.newCoords.lng?.toFixed(6) }}</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-blue-50 border border-blue-200 rounded-md p-3">
+            <p class="text-xs text-blue-800">
+              The route has been automatically updated. Click "Keep Changes" to confirm or "Revert" to restore the original position.
+            </p>
+          </div>
+        </div>
+
+        <div class="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-between">
+          <button @click="revertPointChanges" class="px-5 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+            Revert
+          </button>
+          <button @click="savePointChanges" class="px-5 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700">
+            Keep Changes
+          </button>
+        </div>
+      </div>
+    </Modal>
+
+    <!-- Marker Drag Confirmation Modal -->
+    <Modal :show="showMarkerDragModal" @close="confirmMarkerReposition">
+      <div class="relative bg-white rounded-lg shadow-xl w-full max-w-md mx-auto">
+        <div class="px-6 py-4 border-b border-gray-200">
+          <h3 class="text-lg font-semibold text-gray-900">Marker Position Updated</h3>
+        </div>
+
+        <div class="px-6 py-5">
+          <p class="text-sm text-gray-700 mb-4">
+            You've moved the marker for <span class="font-bold">{{ markerDragData.label }}</span>.
+          </p>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div class="bg-red-50 border border-red-200 rounded-md p-3">
+              <h4 class="text-sm font-medium text-red-800 mb-2">Original Position</h4>
+              <div class="text-xs text-red-700">
+                <div>Lat: {{ markerDragData.oldCoords.lat?.toFixed(6) }}</div>
+                <div>Lng: {{ markerDragData.oldCoords.lng?.toFixed(6) }}</div>
+              </div>
+            </div>
+
+            <div class="bg-green-50 border border-green-200 rounded-md p-3">
+              <h4 class="text-sm font-medium text-green-800 mb-2">New Position</h4>
+              <div class="text-xs text-green-700">
+                <div>Lat: {{ markerDragData.newCoords.lat?.toFixed(6) }}</div>
+                <div>Lng: {{ markerDragData.newCoords.lng?.toFixed(6) }}</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-blue-50 border border-blue-200 rounded-md p-3">
+            <p class="text-xs text-blue-800">
+              Click "Keep Changes" to open the edit form and save the new position, or "Revert" to restore the original position.
+            </p>
+          </div>
+        </div>
+
+        <div class="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-between">
+          <button @click="revertMarkerPosition" class="px-5 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+            Revert
+          </button>
+          <button @click="confirmMarkerReposition" class="px-5 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700">
+            Keep Changes
+          </button>
+        </div>
+      </div>
+    </Modal>
+
+    <!-- Edit Marker Modal -->
+    <Modal :show="showEditMarkerModal" @close="closeEditMarkerModal">
+      <div class="relative bg-white rounded-lg shadow-xl w-full max-w-2xl mx-auto">
+        <div class="px-6 py-4 border-b border-gray-200">
+          <h3 class="text-lg font-semibold text-gray-900">Edit Marker</h3>
+        </div>
+
+        <div class="px-6 py-5">
+          <div class="bg-blue-50 border border-blue-200 rounded-md p-3 mb-4">
+            <p class="text-sm text-blue-800 font-medium mb-2">Location Change Summary</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <p class="text-xs text-blue-700 font-medium">Original Location</p>
+                <p class="text-xs text-blue-600">Lat: {{ markerDragData.oldCoords.lat?.toFixed(6) }}</p>
+                <p class="text-xs text-blue-600">Lng: {{ markerDragData.oldCoords.lng?.toFixed(6) }}</p>
+              </div>
+              <div>
+                <p class="text-xs text-green-700 font-medium">New Location</p>
+                <p class="text-xs text-green-600">Lat: {{ markerDragData.newCoords.lat?.toFixed(6) }}</p>
+                <p class="text-xs text-green-600">Lng: {{ markerDragData.newCoords.lng?.toFixed(6) }}</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-900 mb-2">Latitude</label>
+              <TextInput v-model="editMarker.latitude" type="text" class="w-full" />
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-900 mb-2">Longitude</label>
+              <TextInput v-model="editMarker.longitude" type="text" class="w-full" />
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-900 mb-2">Location Name</label>
+              <TextInput v-model="editMarker.label" type="text" placeholder="e.g., Main Library" class="w-full" />
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-900 mb-2">Type</label>
+              <select v-model="editMarker.type" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                <option value="" disabled>Select a type</option>
+                <option v-for="type in markerTypes" :key="type" :value="type">{{ type }}</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-3">
+          <button @click="closeEditMarkerModal" :disabled="isSubmitting" class="px-5 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md">
+            Cancel
+          </button>
+          <button @click="saveEditedMarker" :disabled="!editMarker.label || !editMarker.type || isSubmitting" class="px-5 py-2 text-sm font-medium text-white bg-gray-900 rounded-md disabled:bg-gray-400">
+            {{ isSubmitting ? 'Saving...' : 'Save Changes' }}
+          </button>
+        </div>
+      </div>
+    </Modal>
+
+    <!-- Delete Marker Modal -->
+    <Modal :show="showDeleteMarkerConfirmModal" @close="closeDeleteMarkerModal">
+      <div class="relative bg-white rounded-lg shadow-xl w-full max-w-md mx-auto">
+        <div class="px-6 py-4 border-b border-gray-200">
+          <h3 class="text-lg font-semibold text-gray-900">Delete Marker</h3>
+        </div>
+
+        <div class="px-6 py-5">
+          <p class="text-sm text-gray-700">
+            Are you sure you want to delete this marker?
+          </p>
+          <p v-if="markerToDelete" class="text-sm font-medium text-gray-900 mt-2">
+            {{ markerToDelete.name }}
+          </p>
+          <p v-if="markerToDelete" class="text-xs text-gray-500 mt-1">
+            {{ markerToDelete.department }}
+          </p>
+          <p class="text-sm text-red-600 mt-3">
+            This action cannot be undone.
+          </p>
+        </div>
+
+        <div class="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-3">
+          <button @click="closeDeleteMarkerModal" :disabled="isSubmitting" class="px-5 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md">
+            Cancel
+          </button>
+          <button @click="confirmDeleteMarker" :disabled="isSubmitting" class="px-5 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 disabled:bg-gray-400">
+            {{ isSubmitting ? 'Deleting...' : 'Delete Marker' }}
+          </button>
+        </div>
+      </div>
+    </Modal>
+
+    <!-- Delete Route Modal -->
+    <Modal :show="showDeleteConfirmModal" @close="closeDeleteModal">
+      <div class="relative bg-white rounded-lg shadow-xl w-full max-w-md mx-auto">
+        <div class="px-6 py-4 border-b border-gray-200">
+          <h3 class="text-lg font-semibold text-gray-900">Delete Route</h3>
+        </div>
+
+        <div class="px-6 py-5">
+          <p class="text-sm text-gray-700">
+            Are you sure you want to delete this route?
+          </p>
+          <p v-if="routeToDelete" class="text-sm font-medium text-gray-900 mt-2">
+            {{ routeToDelete.data.start_location }} → {{ routeToDelete.data.end_location }}
+          </p>
+          <p class="text-sm text-red-600 mt-3">
+            This action cannot be undone.
+          </p>
+        </div>
+
+        <div class="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-3">
+          <button @click="closeDeleteModal" :disabled="isSubmitting" class="px-5 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md">
+            Cancel
+          </button>
+          <button @click="confirmDeleteRoute" :disabled="isSubmitting" class="px-5 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 disabled:bg-gray-400">
+            {{ isSubmitting ? 'Deleting...' : 'Delete Route' }}
+          </button>
+        </div>
+      </div>
+    </Modal>
   </div>
 </template>
 
@@ -742,5 +1671,14 @@ const clearSearch = () => {
 .max-h-60::-webkit-scrollbar-thumb {
   background: #888;
   border-radius: 3px;
+}
+
+/* Enhanced marker styling */
+.edit-route-marker {
+  z-index: 1000 !important;
+}
+
+.edit-route-marker:hover {
+  z-index: 1001 !important;
 }
 </style>

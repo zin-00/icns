@@ -11,7 +11,12 @@ use Inertia\Inertia;
 
 class AuthController extends Controller
 {
+public function isEmailExist(Request $request)
+    {
+        $exists = User::where('email', $request->email)->exists();
+        return response()->json(['exists' => $exists]);
 
+    }
 public function login(Request $request)
     {
         $credentials = $request->validate([
@@ -20,15 +25,15 @@ public function login(Request $request)
         ]);
 
         if (!auth()->attempt($credentials)) {
-            return Inertia::render('auth/Login', [
-                'error' => 'The provided credentials are incorrect.'
-            ]);
+            return response()->json(['message' => 'Invalid credentials'], 401);
         }
 
         $request->session()->regenerate();
 
         // Redirect to dashboard/admin index
-        return redirect()->route('reports.dashboard');
+        return response()->json([
+            'message' => 'logged in successfully'
+        ]);
     }
 
 
@@ -58,6 +63,47 @@ public function login(Request $request)
 
         // Redirect to login page with success message
         return redirect()->route('login')->with('success', 'Registration successful! Please login.');
+    }
+
+     public function index()
+    {
+        $user = Auth::user();
+        return Inertia::render('auth/profile/Profile', [
+            'user' => $user,
+        ]);
+    }
+
+    public function update(Request $request)
+    {
+        $user = Auth::user();
+
+        $validatedData = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|max:255|unique:users,email,' . $user->id,
+            // Add other fields as necessary
+        ]);
+
+        $user->update($validatedData);
+        return response()->json(['message' => 'Profile updated successfully.']);
+    }
+
+    // Change Password
+    public function changePassword(Request $request){
+        $user = Auth::user();
+
+        $validatedData = $request->validate([
+            'current_password' => 'required',
+            'new_password' => 'required|string|min:8|confirmed',
+        ]);
+
+        if (!Hash::check($validatedData['current_password'], $user->password)) {
+            return response()->json(['message' => 'Current password is incorrect.'], 400);
+        }
+
+        $user->password = Hash::make($validatedData['new_password']);
+        $user->save();
+
+        return response()->json(['message' => 'Password changed successfully.']);
     }
 
 }

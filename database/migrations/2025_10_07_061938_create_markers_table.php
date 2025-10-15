@@ -13,8 +13,8 @@ return new class extends Migration
         {
             Schema::create('markers', function (Blueprint $table) {
                 $table->id();
-                $table->float('latitude', 10, 6);
-                $table->float('longitude', 10, 6);
+                $table->decimal('latitude', 10, 8)->change();
+                $table->decimal('longitude', 11, 8)->change();
                 $table->string('label');
                 $table->string('type')->default('building');
                 $table->timestamps();
