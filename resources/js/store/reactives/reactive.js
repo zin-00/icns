@@ -28,9 +28,7 @@ export const useReactiveStore = defineStore("reactive", () => {
     const userHeading = ref(0)
     const drawnRoute = ref(null)
     const routeToDelete = ref(null)
-
-
-
+    const transportationMode = ref('walking')
 
     // Boolean
     const isLoading = ref(false)
@@ -150,6 +148,7 @@ export const useReactiveStore = defineStore("reactive", () => {
         userHeading,
         drawnRoute,
         routeToDelete,
+        transportationMode,
 
         // Boolean
         isLoading,

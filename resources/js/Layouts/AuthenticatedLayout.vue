@@ -40,7 +40,7 @@ const navItems = [
   { name: 'Overview', route: 'reports.dashboard', icon: AkDashboard },
   { name: 'Facilities', route: 'facility.get', icon: ClBuilding01 },
   { name: 'Feedbacks', route: 'feedback.index', icon: BsChatDots },
-  { name: 'Notes', route: 'notes.index', icon: BsFileText },
+//   { name: 'Notes', route: 'notes.index', icon: BsFileText },
   { name: 'Campus Map', route: 'map.get', icon: BsMap },
   { name: 'Search Logs', route: 'logs.index', icon: BsSearch },
 ];

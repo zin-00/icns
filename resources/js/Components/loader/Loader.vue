@@ -1,5 +1,5 @@
 <script setup>
-import { BreedingRhombusSpinner,  FulfillingSquareSpinner, AtomSpinner} from 'epic-spinners';
+import { PixelSpinner,  FulfillingSquareSpinner, AtomSpinner} from 'epic-spinners';
 
 defineProps({
   isLoading: {
@@ -28,14 +28,14 @@ defineProps({
       <!-- Simple Loader Card -->
       <div class="flex flex-col items-center space-y-4 bg-gray-900/60 px-8 py-6 rounded-lg">
         <!-- Spinner -->
-        <AtomSpinner
+        <PixelSpinner
           :animation-duration="2000"
           color="#10b981"
           :size="70"
         />
 
         <!-- Message -->
-        <p class="text-green-50 text-base font-medium">
+        <p class="text-green-50 text-base">
           {{ message }}
         </p>
       </div>

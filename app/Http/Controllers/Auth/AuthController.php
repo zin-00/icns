@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Events\MainEvent;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -29,11 +30,7 @@ public function login(Request $request)
         }
 
         $request->session()->regenerate();
-
-        // Redirect to dashboard/admin index
-        return response()->json([
-            'message' => 'logged in successfully'
-        ]);
+        return redirect()->intended('/reports');
     }
 
 
@@ -80,10 +77,10 @@ public function login(Request $request)
         $validatedData = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|email|max:255|unique:users,email,' . $user->id,
-            // Add other fields as necessary
         ]);
 
         $user->update($validatedData);
+        broadcast(new MainEvent('user', 'update', $user));
         return response()->json(['message' => 'Profile updated successfully.']);
     }
 

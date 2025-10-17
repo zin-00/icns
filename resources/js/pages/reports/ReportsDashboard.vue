@@ -13,7 +13,8 @@ import {
     ChartPieIcon,
     HomeModernIcon,
     ChatBubbleLeftEllipsisIcon,
-    MagnifyingGlassIcon
+    MagnifyingGlassIcon,
+    ExclamationTriangleIcon
 } from '@heroicons/vue/24/outline';
 import { router } from '@inertiajs/vue3';
 import { useToast } from 'vue-toastification';
@@ -29,13 +30,14 @@ const props = defineProps({
 
 const toast = useToast();
 const showModal = ref(false);
+const showDeleteModal = ref(false);
+const reportToDelete = ref(null);
 const reportType = ref('usage');
 const periodFrom = ref('');
 const periodTo = ref('');
 const customTitle = ref('');
 const isGenerating = ref(false);
 const isDeleting = ref(false);
-const selectedReportId = ref(null);
 
 const reportTypes = [
     { value: 'usage', label: 'Usage Report', description: 'System usage statistics and trends' },
@@ -68,7 +70,7 @@ const getTypeIcon = (type) => {
     facility: HomeModernIcon,
     search: MagnifyingGlassIcon
   };
-  return icons[type] || DocumentIcon;
+  return icons[type] || DocumentChartBarIcon;
 };
 
 // Format date
@@ -142,23 +144,35 @@ const generateReport = async () => {
     }
 };
 
+// Open delete confirmation modal
+const confirmDelete = (report) => {
+    reportToDelete.value = report;
+    showDeleteModal.value = true;
+};
+
 // Delete report
-const deleteReport = async (reportId) => {
-    if (!confirm('Are you sure you want to delete this report?')) return;
+const deleteReport = async () => {
+    if (!reportToDelete.value) return;
 
     isDeleting.value = true;
-    selectedReportId.value = reportId;
 
     try {
-        await axios.delete(`/reports/${reportId}`);
+        await axios.delete(`/reports/${reportToDelete.value.id}`);
         toast.success('Report deleted successfully');
+        showDeleteModal.value = false;
+        reportToDelete.value = null;
         router.reload();
     } catch (error) {
         toast.error('Failed to delete report');
     } finally {
         isDeleting.value = false;
-        selectedReportId.value = null;
     }
+};
+
+// Cancel delete
+const cancelDelete = () => {
+    showDeleteModal.value = false;
+    reportToDelete.value = null;
 };
 
 // Open report
@@ -230,7 +244,7 @@ const openReport = (reportId) => {
                                 </span>
                             </div>
                             <div class="flex items-center gap-2 text-xs text-gray-500">
-                                <CheckCircleIcon class="h-3.5 w-3.5 flex-shrink-0" />
+                                <CalendarIcon class="h-3.5 w-3.5 flex-shrink-0" />
                                 <span class="truncate">{{ formatDate(report.created_at) }} {{ formatTime(report.created_at) }}</span>
                             </div>
                         </div>
@@ -255,9 +269,8 @@ const openReport = (reportId) => {
                             <span>View</span>
                         </button>
                         <button
-                            @click="deleteReport(report.id)"
-                            :disabled="isDeleting && selectedReportId === report.id"
-                            class="px-3 py-2 text-xs font-medium text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition disabled:opacity-50"
+                            @click="confirmDelete(report)"
+                            class="px-3 py-2 text-xs font-medium text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition"
                         >
                             <TrashIcon class="h-4 w-4" />
                         </button>
@@ -353,6 +366,57 @@ const openReport = (reportId) => {
                             >
                                 <ArrowPathIcon v-if="isGenerating" class="h-4 w-4 animate-spin" />
                                 <span>{{ isGenerating ? 'Generating...' : 'Generate' }}</span>
+                            </button>
+                        </div>
+                    </div>
+                </Transition>
+            </div>
+        </Transition>
+
+        <!-- Delete Confirmation Modal -->
+        <Transition name="modal-fade">
+            <div v-if="showDeleteModal" class="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" @click="cancelDelete">
+                <Transition name="modal-scale">
+                    <div v-if="showDeleteModal" class="bg-white rounded-lg shadow-lg w-full max-w-md" @click.stop>
+                        <!-- Modal Header -->
+                        <div class="p-6">
+                            <div class="flex items-center gap-4 mb-4">
+                                <div class="flex-shrink-0 w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
+                                    <ExclamationTriangleIcon class="w-6 h-6 text-red-600" />
+                                </div>
+                                <div>
+                                    <h3 class="text-lg font-semibold text-gray-900">Delete Report</h3>
+                                    <p class="text-sm text-gray-600 mt-1">This action cannot be undone</p>
+                                </div>
+                            </div>
+
+                            <!-- Report Details -->
+                            <div v-if="reportToDelete" class="bg-gray-50 rounded-lg p-4 mb-4">
+                                <p class="text-sm font-medium text-gray-900 mb-1">{{ reportToDelete.title }}</p>
+                                <p class="text-xs text-gray-600">{{ reportToDelete.description }}</p>
+                            </div>
+
+                            <p class="text-sm text-gray-700">
+                                Are you sure you want to delete this report? All data associated with this report will be permanently removed.
+                            </p>
+                        </div>
+
+                        <!-- Modal Footer -->
+                        <div class="p-6 border-t border-gray-200 flex gap-3 justify-end">
+                            <button
+                                @click="cancelDelete"
+                                :disabled="isDeleting"
+                                class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-lg transition disabled:opacity-50"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                @click="deleteReport"
+                                :disabled="isDeleting"
+                                class="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition disabled:opacity-50 flex items-center gap-2"
+                            >
+                                <ArrowPathIcon v-if="isDeleting" class="h-4 w-4 animate-spin" />
+                                <span>{{ isDeleting ? 'Deleting...' : 'Delete Report' }}</span>
                             </button>
                         </div>
                     </div>

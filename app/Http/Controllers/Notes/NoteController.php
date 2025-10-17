@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Notes;
 
+use App\Events\MainEvent;
 use App\Http\Controllers\Controller;
 use App\Models\Note;
 use Illuminate\Http\Request;
@@ -11,8 +12,6 @@ class NoteController extends Controller
 {
    public function store(Request $request)
     {
-        // Debug the incoming request
-        Log::info('Note store request received:', $request->all());
 
         // Validate the request
         $validated = $request->validate([
@@ -20,14 +19,10 @@ class NoteController extends Controller
             'marker_id' => ['required', 'exists:markers,id'],
             'content' => ['required', 'string', 'max:500'],
         ]);
-
-        Log::info('Validation passed, creating note:', $validated);
-
         try {
             $note = Note::create($validated);
 
-            Log::info('Note created successfully:', $note->toArray());
-
+            broadcast(new MainEvent('note', 'create', $note));
             return response()->json([
                 'message' => 'Note created successfully.',
                 'note' => $note

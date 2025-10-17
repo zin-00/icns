@@ -25,8 +25,27 @@ use Inertia\Inertia;
 Route::get('/', function () {
     $facilities = Facility::with(['marker.notes.guest'])->get();
 
+    // Get all notes (frontend will filter by guest_id)
+    $notes = Note::with(['marker', 'guest'])
+        ->get()
+        ->map(function($note) {
+            return [
+                'id' => $note->id,
+                'content' => $note->content,
+                'marker_id' => $note->marker_id,
+                'guest_id' => $note->guest_id,
+                'created_at' => $note->created_at,
+                'updated_at' => $note->updated_at,
+                'guest' => $note->guest ? [
+                    'id' => $note->guest->id,
+                    'name' => $note->guest->name
+                ] : null
+            ];
+        });
+
     return Inertia::render('guest/Index', [
         'facilities' => $facilities,
+        'notes' => $notes,
     ]);
 });
 Route::post('/create/feedback', [FeedbackController::class, 'store'])->name('feedback.create');
@@ -65,10 +84,10 @@ Route::middleware('auth')->group(function () {
     require __DIR__.'/report/report.php';
     require __DIR__.'/route/route.php';
     require __DIR__.'/auth/profile/profile.php';
-    require __DIR__.'/note/note.php';
 
     Route::get('/search-logs', [RenderController::class, 'searchlog'])->name('logs.index');
 
 });
+    require __DIR__.'/note/note.php';
 
 

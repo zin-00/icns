@@ -6,5 +6,5 @@ use Illuminate\Support\Facades\Route;
 
 
 Route::get('/profile', [AuthController::class, 'index'])->name('profile.index');
-Route::post('/profile/update', [AuthController::class, 'update'])->name('profile.update');
+Route::put('/profile/update', [AuthController::class, 'update'])->name('profile.update');
 Route::patch('/profile/change-password', [AuthController::class, 'changePassword']);

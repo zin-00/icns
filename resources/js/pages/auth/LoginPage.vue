@@ -47,8 +47,12 @@ const login = async () => {
       password: password.value,
       remember: remember.value
     })
-    router.visit(route('reports.dashboard'))
+
     toast.success(res.data.message || 'Login successful!')
+    setTimeout(() => {
+      window.location.href = '/reports'
+    }, 1000)
+
   } catch (error) {
     console.error('Login failed:', error)
 
@@ -56,11 +60,15 @@ const login = async () => {
       errors.value = error.response.data.errors
     }
 
-    toast.error('Login failed. Please check your credentials.')
+    toast.error(
+      error.response?.data?.message ||
+      'Login failed. Please check your credentials.'
+    )
   } finally {
     processing.value = false
   }
 }
+
 const goToRequestAccess = () => {
   router.visit(route('register.get'))
 }

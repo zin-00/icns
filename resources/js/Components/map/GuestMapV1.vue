@@ -29,9 +29,6 @@ const {
         showGuestModal,
         isLoaded,
         isGuestInfoComplete,
-        markerNote,
-        isSavingNote,
-        showNoteModal,
         showInstructions,
         isReviewModalOpen,
         isSavingFeedback,
@@ -67,6 +64,16 @@ const guestInfo = ref({
   nickname: '',
   role: ''
 })
+const sessionCheckInterval = ref(null);
+
+const transportMode = ref('walking') // walking, riding, driving
+const transportModes = [
+  { value: 'walking', label: 'Walking', icon: '🚶', speed: 5 },
+  { value: 'riding', label: 'Riding', icon: '🚴', speed: 15 },
+  { value: 'driving', label: 'Driving', icon: '🚗', speed: 40 }
+]
+
+const noteMarkers = ref([])
 
 // Guest roles
 const guestRoles = [
@@ -139,15 +146,51 @@ watch(searchQuery, (query) => {
   isSearching.value = false
 })
 
-// Load guest info from sessionStorage
+// Check session expiration periodically
+const startSessionChecker = () => {
+  // Check every minute
+  sessionCheckInterval.value = setInterval(() => {
+    const savedGuestInfo = sessionStorage.getItem('guestInfo')
+    if (savedGuestInfo) {
+      try {
+        const parsed = JSON.parse(savedGuestInfo)
+        // Check if session has expired
+        if (parsed.expiresAt && Date.now() > parsed.expiresAt) {
+          console.log('Session expired, reloading page...')
+          clearSessionAndReload()
+        }
+      } catch (error) {
+        console.error('Error checking session:', error)
+        clearSessionAndReload()
+      }
+    }
+  }, 60000) // Check every minute
+}
+
+const clearSessionAndReload = () => {
+  sessionStorage.removeItem('guestInfo')
+  window.location.reload()
+}
+
+// Load guest info from sessionStorage with expiration check
 const loadGuestInfoFromSession = () => {
   const savedGuestInfo = sessionStorage.getItem('guestInfo')
   if (savedGuestInfo) {
     try {
       const parsed = JSON.parse(savedGuestInfo)
+
+      // Check if session has expired
+      if (parsed.expiresAt && Date.now() > parsed.expiresAt) {
+        console.log('Session expired, clearing stored data')
+        sessionStorage.removeItem('guestInfo')
+        return false
+      }
+
       guestInfo.value = parsed
       isGuestInfoComplete.value = true
       showGuestModal.value = false
+
+      startSessionChecker();
       return true
     } catch (error) {
       console.error('Error parsing guest info:', error)
@@ -157,7 +200,7 @@ const loadGuestInfoFromSession = () => {
   return false
 }
 
-// Transform facilities to locations format
+// Transform facilities to locations format - UPDATED
 const locations = computed(() => {
   if (!props.facilities || !Array.isArray(props.facilities)) {
     console.warn('No facilities data')
@@ -183,7 +226,8 @@ const locations = computed(() => {
       try {
         const markerType = facility.marker?.type?.toLowerCase() || 'default'
         return {
-          id: facility.id,
+          id: facility.id, // Facility ID
+          marker_id: facility.marker.id, // Add marker ID
           name: facility.name || 'Unnamed Facility',
           lng: parseFloat(facility.marker.longitude),
           lat: parseFloat(facility.marker.latitude),
@@ -191,7 +235,8 @@ const locations = computed(() => {
           markerType: markerType,
           category: facility.category || 'General',
           description: facility.description || '',
-          icon: markerTypeIcons[markerType] || markerTypeIcons.default
+          icon: markerTypeIcons[markerType] || markerTypeIcons.default,
+          marker: facility.marker // Include the full marker object
         }
       } catch (error) {
         console.error('Error processing facility:', facility, error)
@@ -214,7 +259,6 @@ const backToStep1 = () => {
   guestStep.value = 1
 }
 
-// Save guest info
 const saveGuestInfo = async () => {
   if (!guestInfo.value.nickname || !guestInfo.value.role) {
     console.error('Please complete all steps')
@@ -229,11 +273,20 @@ const saveGuestInfo = async () => {
 
     const data = response.data
     guestInfo.value.id = data.id
-    sessionStorage.setItem('guestInfo', JSON.stringify(guestInfo.value))
+
+    // Store with 24-hour expiration
+    const guestData = {
+      ...guestInfo.value,
+      expiresAt: Date.now() + (24 * 60 * 60 * 1000) // 24 hours
+    }
+
+    sessionStorage.setItem('guestInfo', JSON.stringify(guestData))
     isGuestInfoComplete.value = true
     showGuestModal.value = false
 
     console.log(`Welcome, ${guestInfo.value.nickname}!`)
+
+    startSessionChecker();
 
     // Initialize map AFTER guest info is saved if not already initialized
     if (!map.value) {
@@ -284,9 +337,7 @@ const getNearestPointOnLine = (point, coordinates) => {
   return { index: nearestIndex, coord: coordinates[nearestIndex], distance: minDist }
 }
 
-/**
- * Find clicked LineString feature
- */
+// Find clicked LineString feature
 const findClickedLineString = (clickPoint, features, threshold = 30) => {
   let closestFeature = null
   let closestPoint = null
@@ -352,11 +403,11 @@ const generateInstructions = (route, isPrivatePath) => {
   return instructions
 }
 
-// Calculate ETA
 const calculateETA = (distanceMeters) => {
-  const walkingSpeedKmH = 5
-  const walkingSpeedMS = walkingSpeedKmH * 1000 / 3600
-  const timeSeconds = distanceMeters / walkingSpeedMS
+  const currentMode = transportModes.find(m => m.value === transportMode.value)
+  const speedKmH = currentMode ? currentMode.speed : 5
+  const speedMS = speedKmH * 1000 / 3600
+  const timeSeconds = distanceMeters / speedMS
   const timeMinutes = Math.ceil(timeSeconds / 60)
 
   const now = new Date()
@@ -368,10 +419,10 @@ const calculateETA = (distanceMeters) => {
   }
 }
 
-// Get public route from OSRM
 const getPublicRoute = async (start, end) => {
   try {
-    const url = `https://router.project-osrm.org/route/v1/walking/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson`
+    const profile = transportMode.value === 'driving' ? 'driving' : transportMode.value === 'riding' ? 'cycling' : 'walking'
+    const url = `https://router.project-osrm.org/route/v1/${profile}/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson`
     const response = await fetch(url)
     const data = await response.json()
 
@@ -384,10 +435,7 @@ const getPublicRoute = async (start, end) => {
   }
   return null
 }
-
-/**
- * Enhanced graph building from GeoJSON LineString features
- */
+// Build campus graph from GeoJSON features
 const buildCampusGraph = (geojsonFeatures) => {
   const graph = new Map()
   const nodeMap = new Map() // To deduplicate nodes by coordinates
@@ -435,13 +483,11 @@ const buildCampusGraph = (geojsonFeatures) => {
     })
   })
 
-  console.log(`✅ Built graph with ${graph.size} nodes and ${Array.from(graph.values()).reduce((sum, node) => sum + node.neighbors.length, 0)} edges`)
+  console.log(`Built graph with ${graph.size} nodes and ${Array.from(graph.values()).reduce((sum, node) => sum + node.neighbors.length, 0)} edges`)
   return graph
 }
 
-/**
- * Find the nearest graph node to a given point
- */
+// Find nearest node in graph
 const findNearestNode = (point, graph, maxDistance = 100) => {
   let nearestId = null
   let minDist = Infinity
@@ -457,78 +503,92 @@ const findNearestNode = (point, graph, maxDistance = 100) => {
   return nearestId
 }
 
-/**
- * Improved A* Pathfinding Algorithm
- */
+// A* Pathfinding Algorithm
 const findPathAStar = (startId, goalId, graph) => {
-  if (!graph.has(startId) || !graph.has(goalId)) {
-    console.warn('⚠️ Start or goal node not in graph')
-    return null
+ if (!graph.has(startId) || !graph.has(goalId)) {
+  console.warn('Start or goal node not in graph');
+  return null;
+ }
+
+ // The set of nodes already evaluated.
+ const closedSet = new Set();
+
+ // The set of currently discovered nodes that are not evaluated yet.
+ // Initially, only the start node is known.
+ const openSet = [startId];
+
+ // For each node, which node it can most efficiently be reached from.
+ // If a node can be reached from many nodes, cameFrom will eventually contain the most efficient previous step.
+ const cameFrom = new Map();
+
+ // For each node, the cost of getting from the start node to that node.
+ const gScore = new Map();
+ gScore.set(startId, 0); // The cost of going from start to start is 0.
+
+ // For each node, the total cost of getting from the start node to the goal
+ // by passing by that node. That value is partly known, partly heuristic.
+ const fScore = new Map();
+
+ const startNode = graph.get(startId);
+ const goalNode = graph.get(goalId);
+
+ // Heuristic function (straight-line distance), which is admissible.
+ const heuristic = (nodeA, nodeB) => {
+  return calculateDistance(nodeA.lat, nodeA.lng, nodeB.lat, nodeB.lng);
+ };
+
+ // For the first node, the fScore is completely heuristic.
+ fScore.set(startId, heuristic(startNode, goalNode));
+
+ while (openSet.length > 0) {
+  // Find the node in openSet having the lowest fScore[] value
+  let currentId = openSet.reduce((lowest, id) => {
+   return (fScore.get(id) || Infinity) < (fScore.get(lowest) || Infinity) ? id : lowest;
+  }, openSet[0]);
+
+  if (currentId === goalId) {
+   return reconstructPath(cameFrom, currentId, graph);
   }
 
-  const openSet = new Set([startId])
-  const cameFrom = new Map()
-  const gScore = new Map([[startId, 0]])
-  const fScore = new Map()
+  // Move currentId from openSet to closedSet
+  openSet.splice(openSet.indexOf(currentId), 1);
+  closedSet.add(currentId);
 
-  const startNode = graph.get(startId)
-  const goalNode = graph.get(goalId)
+  const currentNode = graph.get(currentId);
+  const currentG = gScore.get(currentId);
 
-  // Heuristic function (straight-line distance)
-  const heuristic = (nodeA, nodeB) => {
-    return calculateDistance(nodeA.lat, nodeA.lng, nodeB.lat, nodeB.lng)
+  for (const neighbor of currentNode.neighbors) {
+   const neighborId = neighbor.id;
+   const neighborNode = graph.get(neighborId);
+
+   // Ignore the neighbor which is already evaluated.
+   if (closedSet.has(neighborId) || !neighborNode) {
+    continue;
+   }
+
+   // The distance from start to a neighbor
+   const tentativeG = currentG + neighbor.cost;
+
+   // Discover a new node
+   if (!openSet.includes(neighborId)) {
+    openSet.push(neighborId);
+   } else if (tentativeG >= (gScore.get(neighborId) || Infinity)) {
+    // This is not a better path.
+    continue;
+   }
+
+   // This path is the best until now. Record it!
+   cameFrom.set(neighborId, currentId);
+   gScore.set(neighborId, tentativeG);
+   fScore.set(neighborId, tentativeG + heuristic(neighborNode, goalNode));
   }
+ }
 
-  fScore.set(startId, heuristic(startNode, goalNode))
-
-  while (openSet.size > 0) {
-    // Find node with lowest fScore
-    let currentId = null
-    let lowestF = Infinity
-
-    for (const id of openSet) {
-      const score = fScore.get(id) || Infinity
-      if (score < lowestF) {
-        lowestF = score
-        currentId = id
-      }
-    }
-
-    if (currentId === goalId) {
-      return reconstructPath(cameFrom, currentId, graph)
-    }
-
-    openSet.delete(currentId)
-    const currentNode = graph.get(currentId)
-    const currentG = gScore.get(currentId)
-
-    for (const neighbor of currentNode.neighbors) {
-      const neighborId = neighbor.id
-      const neighborNode = graph.get(neighborId)
-
-      if (!neighborNode) continue
-
-      const tentativeG = currentG + neighbor.cost
-
-      if (tentativeG < (gScore.get(neighborId) || Infinity)) {
-        cameFrom.set(neighborId, currentId)
-        gScore.set(neighborId, tentativeG)
-        fScore.set(neighborId, tentativeG + heuristic(neighborNode, goalNode))
-
-        if (!openSet.has(neighborId)) {
-          openSet.add(neighborId)
-        }
-      }
-    }
-  }
-
-  console.warn('⚠️ No path found between nodes')
-  return null
+ console.warn('No path found between nodes');
+ return null;
 }
 
-/**
- * Reconstruct the path from A* result
- */
+// Reconstruct path from cameFrom map
 const reconstructPath = (cameFrom, currentId, graph) => {
   const path = []
   let current = currentId
@@ -542,9 +602,7 @@ const reconstructPath = (cameFrom, currentId, graph) => {
   return path
 }
 
-/**
- * Calculate route distance
- */
+// Calculate total route distance
 const calculateRouteDistance = (route) => {
   let totalDistance = 0
   for (let i = 0; i < route.length - 1; i++) {
@@ -556,14 +614,9 @@ const calculateRouteDistance = (route) => {
   return totalDistance
 }
 
-/**
- * Find connection points between public roads and private paths
- */
+// Find campus entrances
 const findCampusEntrances = (graph, maxDistance = 50) => {
   const entrances = []
-
-  // For simplicity, we'll consider all graph nodes as potential entrances
-  // In a real implementation, you might want to identify specific entrance points
   for (const [nodeId, node] of graph.entries()) {
     entrances.push({
       id: nodeId,
@@ -576,9 +629,7 @@ const findCampusEntrances = (graph, maxDistance = 50) => {
   return entrances
 }
 
-/**
- * Enhanced routing function with optimized pathfinding
- */
+// Create route with pathfinding
 const createRouteWithPathfinding = async (clickLatLng) => {
   if (!userLocation.value) {
     toast.error('Waiting for GPS location...')
@@ -629,14 +680,14 @@ const createRouteWithPathfinding = async (clickLatLng) => {
 
       // Draw this hybrid route
       drawRouteOnMap(fullRoute, 'hybrid', true)
-      console.log('✅ Hybrid route to private path completed')
+      console.log('Hybrid route to private path completed')
       return
     }
   }
 
   // If no private routes available, use public route only
   if (!privateRoutes.value || !privateRoutes.value.features || privateRoutes.value.features.length === 0) {
-    console.warn('⚠️ No private routes available, using public route only')
+    console.warn('No private routes available, using public route only')
     const publicRoute = await getPublicRoute(userPos, destPos)
     if (publicRoute) {
       drawRouteOnMap(publicRoute, 'public', false)
@@ -650,7 +701,7 @@ const createRouteWithPathfinding = async (clickLatLng) => {
   const campusGraph = buildCampusGraph(privateRoutes.value.features)
 
   if (campusGraph.size === 0) {
-    console.warn('⚠️ Campus graph is empty, using public route only')
+    console.warn('Campus graph is empty, using public route only')
     const publicRoute = await getPublicRoute(userPos, destPos)
     if (publicRoute) {
       drawRouteOnMap(publicRoute, 'public', false)
@@ -746,7 +797,7 @@ const createRouteWithPathfinding = async (clickLatLng) => {
 
   // Select the best route (shortest distance)
   if (routeOptions.length === 0) {
-    console.warn('⚠️ All routing failed, using direct line')
+    console.warn('All routing failed, using direct line')
     drawRouteOnMap([userPos, destPos], 'direct', false)
     return
   }
@@ -755,7 +806,7 @@ const createRouteWithPathfinding = async (clickLatLng) => {
     current.distance < best.distance ? current : best
   )
 
-  console.log(`✅ Selected: ${bestRoute.type.toUpperCase()} route (${Math.round(bestRoute.distance)}m)`)
+  console.log(`Selected: ${bestRoute.type.toUpperCase()} route (${Math.round(bestRoute.distance)}m)`)
   drawRouteOnMap(bestRoute.route, bestRoute.type, bestRoute.isPrivate)
 }
 
@@ -807,7 +858,8 @@ const drawRouteOnMap = (route, routeType, isPrivatePath) => {
     direct: '⚪ Direct Line'
   }
 
-  routeInfo.value = `${routeLabels[routeType]}\n📏 ${distanceText}\n⏱️ ${eta.minutes} min\n🕐 Arrive at ${eta.arrivalTime}`
+  const currentMode = transportModes.find(m => m.value === transportMode.value)
+  routeInfo.value = `${routeLabels[routeType]}\n${currentMode.icon} ${currentMode.label}\n📏 ${distanceText}\n⏱️ ${eta.minutes} min\n🕐 Arrive at ${eta.arrivalTime}`
 
   navigationInstructions.value = generateInstructions(routeCoords, isPrivatePath)
   showInstructions.value = true
@@ -820,6 +872,93 @@ const drawRouteOnMap = (route, routeType, isPrivatePath) => {
 
 // Use the new pathfinding function as the main routing function
 const createRoute = createRouteWithPathfinding
+
+const deleteNote = async (noteId) => {
+  try {
+    await axios.delete(`/notes/${noteId}`)
+    toast.success('Note deleted successfully!')
+
+    // Remove the note marker from map
+    const noteMarkerIndex = noteMarkers.value.findIndex(nm => nm.noteId === noteId)
+    if (noteMarkerIndex !== -1) {
+      map.value.removeLayer(noteMarkers.value[noteMarkerIndex].marker)
+      noteMarkers.value.splice(noteMarkerIndex, 1)
+    }
+  } catch (error) {
+    console.error('Error deleting note:', error)
+    toast.error('Failed to delete note')
+  }
+}
+
+const displayNotesOnMap = () => {
+  // Clear existing note markers
+  noteMarkers.value.forEach(nm => {
+    if (map.value) {
+      map.value.removeLayer(nm.marker)
+    }
+  })
+  noteMarkers.value = []
+
+  if (!props.notes || !Array.isArray(props.notes)) {
+    return
+  }
+
+  props.notes.forEach(note => {
+    // Find the facility this note belongs to
+    const facility = locations.value.find(loc => loc.id === note.marker_id)
+
+    if (!facility) return
+
+    // Create a note marker positioned above the facility marker
+    const noteMarker = L.marker([facility.lat, facility.lng], {
+      icon: L.divIcon({
+        className: 'note-marker',
+        html: `
+          <div class="note-bubble">
+            <button class="note-delete-btn" data-note-id="${note.id}" title="Delete note">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <div class="note-content">${note.content}</div>
+            <div class="note-arrow"></div>
+          </div>
+        `,
+        iconSize: [200, 80],
+        iconAnchor: [100, 100] // Position above the facility marker
+      }),
+      zIndexOffset: 1000 // Ensure notes appear above other markers
+    }).addTo(map.value)
+
+    // Add click handler for delete button
+    noteMarker.on('add', () => {
+      setTimeout(() => {
+        const deleteBtn = document.querySelector(`[data-note-id="${note.id}"]`)
+        if (deleteBtn) {
+          deleteBtn.addEventListener('click', (e) => {
+            e.stopPropagation()
+            if (confirm('Are you sure you want to delete this note?')) {
+              deleteNote(note.id)
+            }
+          })
+        }
+      }, 100)
+    })
+
+    noteMarkers.value.push({
+      noteId: note.id,
+      marker: noteMarker
+    })
+  })
+
+  console.log(`📝 Displayed ${noteMarkers.value.length} notes on map`)
+}
+
+watch(() => props.notes, () => {
+  if (map.value) {
+    displayNotesOnMap()
+  }
+}, { deep: true })
 
 // Add facility marker
 const addFacilityMarker = (location) => {
@@ -849,12 +988,14 @@ const addFacilityMarker = (location) => {
       iconAnchor: [20, 20]
     })
   }).addTo(map.value)
-     .bindTooltip(location.name, {
-        permanent: true,
-        direction: 'top',
-        offset: [0 ,-20],
-        className: 'facility-label'
-     })
+
+  marker.bindTooltip(location.name, {
+    permanent: true,
+    direction: 'auto', // Automatically adjust direction to prevent overlap
+    offset: [0, -25],
+    className: 'facility-label',
+    opacity: 0.9
+  })
 
 const popupContent = `
   <div class="p-2 min-w-[230px] font-inter">
@@ -872,20 +1013,10 @@ const popupContent = `
     }
 
     <div class="flex justify-between items-center gap-1.5 mt-2.5">
-      <!-- Route Button -->
       <button id="route-btn-${location.id}" class="flex-1 bg-blue-500 text-white px-0 py-1.5 rounded-md text-xs border-none cursor-pointer flex items-center justify-center gap-1 hover:bg-blue-600">
         🧭 Route
       </button>
 
-      <!-- Add Note Button -->
-      <button id="note-btn-${location.id}" class="flex-1 bg-emerald-500 text-white px-0 py-1.5 rounded-md text-xs border-none cursor-pointer flex items-center justify-center gap-1 hover:bg-emerald-700">
-        <svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='currentColor' class='w-4 h-4'>
-          <path stroke-linecap='round' stroke-linejoin='round' d='m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125' />
-        </svg>
-        Note
-      </button>
-
-      <!-- Review Button -->
       <button id="review-btn-${location.id}" class="flex-1 bg-amber-500 text-white px-0 py-1.5 rounded-md text-xs border-none cursor-pointer flex items-center justify-center gap-1 hover:bg-amber-600">
         <svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='currentColor' class='w-4 h-4'>
           <path stroke-linecap='round' stroke-linejoin='round' d='M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z' />
@@ -912,15 +1043,6 @@ const popupContent = `
       })
     }
 
-    if (noteBtn) {
-      noteBtn.addEventListener('click', () => {
-        selectedMarker.value = location
-        markerNote.value = ''
-        showNoteModal.value = true
-        marker.closePopup()
-      })
-    }
-
     if (reviewBtn) {
         reviewBtn.addEventListener('click', () => {
             selectedMarker.value = location
@@ -935,49 +1057,152 @@ const popupContent = `
   return marker
 }
 
-// Start tracking user
 const startTracking = () => {
   if (!navigator.geolocation) {
     console.error('Geolocation not supported')
+    toast.error('Geolocation is not supported by your browser')
     return
   }
 
-  // Get initial position first, then watch
-  navigator.geolocation.getCurrentPosition(
-    (pos) => {
-      userLocation.value = {
-        lat: pos.coords.latitude,
-        lng: pos.coords.longitude
-      }
-      console.log('Initial GPS position acquired:', userLocation.value)
-      updateUserMarker()
+  console.log('Starting GPS tracking with real-time updates...')
 
-      // Now start watching for changes
-      watchId.value = navigator.geolocation.watchPosition(
-        (pos) => {
-          userLocation.value = {
-            lat: pos.coords.latitude,
-            lng: pos.coords.longitude
-          }
+  // More aggressive real-time settings for better responsiveness
+  watchId.value = navigator.geolocation.watchPosition(
+    (pos) => {
+      const newLocation = {
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        accuracy: pos.coords.accuracy, // Track accuracy for visualization
+        heading: pos.coords.heading,   // Track direction if available
+        speed: pos.coords.speed        // Track speed if available
+      }
+
+      console.log('GPS Update:', {
+        position: `${newLocation.lat.toFixed(6)}, ${newLocation.lng.toFixed(6)}`,
+        accuracy: `${Math.round(newLocation.accuracy)}m`,
+        heading: newLocation.heading,
+        speed: newLocation.speed
+      })
+
+      // Only update if position changed significantly (reduces jitter)
+      if (userLocation.value) {
+        const distance = calculateDistance(
+          userLocation.value.lat, userLocation.value.lng,
+          newLocation.lat, newLocation.lng
+        )
+
+        // Update if moved more than 2 meters or accuracy improved significantly
+        const accuracyImproved = newLocation.accuracy < (userLocation.value.accuracy * 0.7)
+
+        if (distance > 2 || accuracyImproved) {
+          userLocation.value = newLocation
           updateUserMarker()
-        },
-        (err) => console.error('Geolocation watch error:', err),
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
-      )
+          updateAccuracyCircle(newLocation)
+
+          console.log(`Position updated: Moved ${Math.round(distance)}m, Accuracy: ${Math.round(newLocation.accuracy)}m`)
+
+          // Auto-pan map to follow user if they're moving significantly
+          if (distance > 10 && map.value) {
+            map.value.panTo([newLocation.lat, newLocation.lng], {
+              animate: true,
+              duration: 1.0
+            })
+          }
+        }
+      } else {
+        // First position acquisition
+        userLocation.value = newLocation
+        updateUserMarker()
+        updateAccuracyCircle(newLocation)
+
+        // Center map on user's location
+        if (map.value) {
+          map.value.setView([newLocation.lat, newLocation.lng], 17, {
+            animate: true,
+            duration: 1.5
+          })
+        }
+
+        toast.success(`GPS acquired! Accuracy: ${Math.round(newLocation.accuracy)}m`)
+      }
     },
     (err) => {
-      console.error('Initial geolocation error:', err)
-      // Fallback: use a default location if GPS fails
-      userLocation.value = { lat: 8.169, lng: 126.003 }
-      updateUserMarker()
+      console.error('Geolocation watch error:', err)
+      let errorMessage = 'GPS signal lost'
+
+      switch (err.code) {
+        case err.PERMISSION_DENIED:
+          errorMessage = 'GPS permission denied. Please enable location services.'
+          break
+        case err.POSITION_UNAVAILABLE:
+          errorMessage = 'GPS position unavailable. Check your location settings.'
+          break
+        case err.TIMEOUT:
+          errorMessage = 'GPS timeout. Trying to reconnect...'
+          // Auto-retry on timeout
+          setTimeout(startTracking, 2000)
+          break
+      }
+
+      toast.error(errorMessage)
+
+      // Fallback: use last known position or default location
+      if (!userLocation.value) {
+        userLocation.value = { lat: 8.169, lng: 126.003 }
+        updateUserMarker()
+      }
     },
-    { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+    {
+      enableHighAccuracy: true,
+      timeout: 5000,           // Shorter timeout for faster response
+      maximumAge: 2000         // Accept positions no older than 2 seconds
+    }
   )
 }
 
+const accuracyCircle = ref(null)
+
+const updateAccuracyCircle = (location) => {
+  if (!map.value || !location.accuracy) return
+
+  // Remove existing accuracy circle
+  if (accuracyCircle.value) {
+    map.value.removeLayer(accuracyCircle.value)
+  }
+
+  // Create new accuracy circle (only if accuracy is reasonable)
+  if (location.accuracy < 100) { // Don't show if accuracy is worse than 100m
+    accuracyCircle.value = L.circle([location.lat, location.lng], {
+      radius: location.accuracy,
+      color: '#3388ff',
+      fillColor: '#3388ff',
+      fillOpacity: 0.1,
+      weight: 1,
+      opacity: 0.5
+    }).addTo(map.value)
+
+    // Add tooltip showing accuracy
+    accuracyCircle.value.bindTooltip(
+      `GPS Accuracy: ${Math.round(location.accuracy)}m`,
+      {
+        permanent: false,
+        direction: 'top',
+        offset: [0, -10]
+      }
+    )
+  }
+}
 const stopTracking = () => {
   if (watchId.value !== null) {
     navigator.geolocation.clearWatch(watchId.value)
+    watchId.value = null
+    console.log('GPS tracking stopped')
+  }
+
+  // Remove accuracy circle
+  if (accuracyCircle.value && map.value) {
+    map.value.removeLayer(accuracyCircle.value)
+    accuracyCircle.value = null
   }
 }
 
@@ -992,20 +1217,83 @@ const updateUserMarker = () => {
     // If marker already exists, just update its position
     if (userMarker.value && typeof userMarker.value.setLatLng === 'function') {
       userMarker.value.setLatLng([userLocation.value.lat, userLocation.value.lng])
-    } else {
-      console.log('Creating new user marker...')
 
-      // Create a default Leaflet marker
+      // Update popup content with fresh info
+      const updatedPopupContent = `
+        <div style="font-size: 13px; color: #1f2937; font-weight: 500;">
+          ${guestInfo.value.nickname || 'You'}
+          ${userLocation.value.accuracy ? `<br><small style="color: #6b7280;">Accuracy: ${Math.round(userLocation.value.accuracy)}m</small>` : ''}
+        </div>
+      `
+      userMarker.value.setPopupContent(updatedPopupContent)
+    } else {
+      console.log('📍 Creating new user marker...')
+
+      // Create a DRAGGABLE Leaflet marker with better styling
       userMarker.value = L.marker([userLocation.value.lat, userLocation.value.lng], {
-        title: 'You'
+        title: guestInfo.value.nickname || 'You',
+        draggable: true,
+        autoPan: true,
+        zIndexOffset: 1000, // Ensure user marker is always on top
+        icon: L.divIcon({
+          className: 'user-location-marker',
+          html: `
+            <div style="
+              background: #3388ff;
+              border: 3px solid white;
+              border-radius: 50%;
+              width: 20px;
+              height: 20px;
+              box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+              animation: pulse 2s infinite;
+            "></div>
+          `,
+          iconSize: [20, 20],
+          iconAnchor: [10, 10]
+        })
       }).addTo(map.value)
 
-      // Bind a simple popup
-      const popupContent = `<div style="font-size: 13px; color: #1f2937; font-weight: 500;">${guestInfo.value.nickname || 'You'}</div>`
+      // Add drag event listener
+      userMarker.value.on('dragstart', () => {
+        console.log('🎯 User started dragging marker')
+      })
+
+      userMarker.value.on('dragend', function(event) {
+        const marker = event.target
+        const position = marker.getLatLng()
+
+        // Update user location
+        userLocation.value = {
+          lat: position.lat,
+          lng: position.lng,
+          accuracy: userLocation.value?.accuracy || 10, // Assume good accuracy when manually placed
+          isManual: true // Flag to indicate manual placement
+        }
+
+        console.log('🎯 Marker dragged to:', userLocation.value)
+        updateAccuracyCircle(userLocation.value)
+
+        // Recalculate route if one exists
+        if (selectedLocation.value) {
+          console.log('🔄 Recalculating route from new position...')
+          createRoute(L.latLng(selectedLocation.value.lat, selectedLocation.value.lng))
+        }
+
+        toast.info('Location updated manually')
+      })
+
+      // Bind popup with user info
+      const popupContent = `
+        <div style="font-size: 13px; color: #1f2937; font-weight: 500;">
+          ${guestInfo.value.nickname || 'You'}
+          ${userLocation.value.accuracy ? `<br><small style="color: #6b7280;">Accuracy: ${Math.round(userLocation.value.accuracy)}m</small>` : ''}
+          ${userLocation.value.isManual ? '<br><small style="color: #f59e0b;">📍 Manually placed</small>' : ''}
+        </div>
+      `
       userMarker.value.bindPopup(popupContent, {
         offset: [0, -12],
         closeButton: false,
-        className: 'minimal-popup'
+        className: 'user-popup'
       })
 
       // Open popup if name available
@@ -1013,22 +1301,19 @@ const updateUserMarker = () => {
         setTimeout(() => {
           if (userMarker.value && !userMarker.value.isPopupOpen()) {
             userMarker.value.openPopup()
+            setTimeout(() => userMarker.value.closePopup(), 3000)
           }
         }, 1000)
       }
     }
 
-    // Update popup when info changes
-    if (userMarker.value && typeof userMarker.value.setPopupContent === 'function') {
-      const updatedPopupContent = `<div style="font-size: 13px; color: #1f2937; font-weight: 500;">${guestInfo.value.nickname || 'You'}</div>`
-      userMarker.value.setPopupContent(updatedPopupContent)
-    }
-
   } catch (error) {
-    console.error('Error updating user marker:', error)
+    console.error('❌ Error updating user marker:', error)
     userMarker.value = null
   }
 }
+
+
 
 const loadPrivateRoutes = async () => {
   try {
@@ -1045,7 +1330,7 @@ const loadPrivateRoutes = async () => {
     if (map.value) {
       refreshPrivateRoutesOnMap();
     }
-    console.log('✅ Loaded routes from database:', privateRoutes.value)
+    console.log('Loaded routes from database:', privateRoutes.value)
     isLoaded.value = true
   } catch (error) {
     console.error('❌ Error loading routes from database:', error)
@@ -1086,7 +1371,7 @@ const refreshPrivateRoutesOnMap = () =>{
     }
   });
 
-    console.log(`✅ Added ${privateRoutes.value.features.length} new private route layers`);
+    console.log(`Added ${privateRoutes.value.features.length} new private route layers`);
     toast.success('Campus paths updated in real-time!'); // Optional feedback
 };
 
@@ -1113,17 +1398,18 @@ const initializeMap = async () => {
 
     L.control.layers({ '🗺️ Standard': standard, '🛰️ Satellite': satellite }).addTo(map.value)
 
-    // Wait for map to be fully loaded
-    map.value.whenReady(() => {
-      console.log('Map is fully loaded and ready')
+      map.value.whenReady(() => {
+      console.log(' Map is fully loaded and ready')
 
       // Add facility markers
       if (locations.value.length > 0) {
-        console.log(`📍 Adding ${locations.value.length} facility markers`)
+        console.log(` Adding ${locations.value.length} facility markers`)
         locations.value.forEach(location => {
           addFacilityMarker(location)
         })
       }
+
+      displayNotesOnMap()
 
       // Add private routes
       if (privateRoutes.value) {
@@ -1152,12 +1438,15 @@ const initializeMap = async () => {
         createRoute(e.latlng)
       })
 
-      startTracking()
+      // Start GPS tracking with a small delay to ensure map is ready
+      setTimeout(() => {
+        startTracking()
+      }, 500)
     })
 
   } catch (error) {
     console.error('Error initializing map:', error)
-    console.error('Failed to initialize map')
+    toast.error('Failed to initialize map. Please refresh the page.')
   }
 }
 
@@ -1180,40 +1469,10 @@ const clearSearch = () => {
   console.info('Route cleared')
 }
 
-// Save marker note
-const saveMarkerNote = async () => {
-  if (!markerNote.value.trim()) {
-    console.error('Please enter a note')
-    return
-  }
-
-  if (!guestInfo.value.id) {
-    console.error('Guest information not found')
-    return
-  }
-
-  isSavingNote.value = true
-
-  try {
-    await axios.post('/create/note', {
-      guest_id: guestInfo.value.id,
-      marker_id: selectedMarker.value.id,
-      content: markerNote.value.trim(),
-    })
-
-    console.log('Note saved successfully!')
-    showNoteModal.value = false
-    markerNote.value = ''
-    selectedMarker.value = null
-  } catch (error) {
-    console.error('Error saving note:', error)
-    console.error('Failed to save note')
-  } finally {
-    isSavingNote.value = false
-  }
-}
-
 const saveFeedback = async () => {
+    console.log('Guest Info:', guestInfo.value.id)
+    console.log('Selected marker:', selectedMarker.value.marker.id)
+    console.log('Saving feedback:', feedback.value)
     if(!feedback.value.trim()){
         console.error('Empty bitch!')
         toast.error('Empty')
@@ -1231,12 +1490,12 @@ const saveFeedback = async () => {
     try {
         const response = await axios.post('/create/feedback',{
             guest_id: guestInfo.value.id,
-            marker_id: selectedMarker.value.id,
+            marker_id: selectedMarker.value.marker.id,
             message: feedback.value.trim(),
         })
         message.value = response.data.message
         console.log(message.value)
-        toast.success(message.value || '✅ Added');
+        toast.success(message.value || 'Added');
         isReviewModalOpen.value = false;
         feedback.value = '';
         selectedMarker.value = null;
@@ -1248,22 +1507,6 @@ const saveFeedback = async () => {
         isReviewModalOpen.value = false;
     }
 }
-
-const closeNoteModal = () => {
-  showNoteModal.value = false
-  markerNote.value = ''
-  selectedMarker.value = null
-}
-
-const clearGuestSession = () => {
-  sessionStorage.removeItem('guestInfo')
-  guestInfo.value = { id: null, nickname: '', role: '' }
-  isGuestInfoComplete.value = false
-  showGuestModal.value = true
-  guestStep.value = 1
-  console.info('Please enter your information again')
-}
-
 const hasGuestInfo = loadGuestInfoFromSession()
 let channel;
 
@@ -1289,7 +1532,7 @@ onBeforeUnmount(() => {
 </script>
 <template>
   <div class="relative w-full h-screen">
-    <!-- Map Container -->
+     <!-- Map Container -->
     <div
       id="map"
       :class="[
@@ -1298,14 +1541,14 @@ onBeforeUnmount(() => {
       ]"
     ></div>
 
-    <!-- Guest Info Modal -->
+     <!-- Guest Info Modal -->
     <div v-if="showGuestModal" class="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
       <div class="relative bg-white rounded-lg shadow-2xl w-full max-w-sm mx-auto">
-        <!-- Step 1: Nickname -->
-        <div v-if="guestStep === 1" class="p-8">
-          <div class="text-center mb-8">
-            <h2 class="text-2xl font-bold text-gray-900 mb-2">Welcome to Campus Navigator</h2>
-            <p class="text-sm text-gray-500">Let's get started with your nickname</p>
+         <!-- Step 1: Nickname -->
+        <div v-if="guestStep === 1" class="p-6 sm:p-8">
+          <div class="text-center mb-6 sm:mb-8">
+            <h2 class="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Welcome to Campus Navigator</h2>
+            <p class="text-xs sm:text-sm text-gray-500">Let's get started with your nickname</p>
           </div>
 
           <div class="space-y-4">
@@ -1313,7 +1556,7 @@ onBeforeUnmount(() => {
               v-model="guestInfo.nickname"
               type="text"
               placeholder="Enter your nickname"
-              class="w-full px-4 py-3 text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+              class="w-full px-4 py-3 text-sm sm:text-base text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
               maxlength="50"
               @keyup.enter="goToStep2"
             />
@@ -1333,11 +1576,11 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <!-- Step 2: Role Selection -->
-        <div v-if="guestStep === 2" class="p-8">
-          <div class="text-center mb-8">
-            <h2 class="text-2xl font-bold text-gray-900 mb-2">Select Your Role</h2>
-            <p class="text-sm text-gray-500">How are you visiting our campus?</p>
+         <!-- Step 2: Role Selection -->
+        <div v-if="guestStep === 2" class="p-6 sm:p-8">
+          <div class="text-center mb-6 sm:mb-8">
+            <h2 class="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Select Your Role</h2>
+            <p class="text-xs sm:text-sm text-gray-500">How are you visiting our campus?</p>
           </div>
 
           <div class="space-y-3 mb-6">
@@ -1352,7 +1595,7 @@ onBeforeUnmount(() => {
                   : 'border-gray-200 hover:border-gray-300'
               ]"
             >
-              <span class="text-2xl">{{ role.icon }}</span>
+              <span class="text-xl sm:text-2xl">{{ role.icon }}</span>
               <span class="text-sm font-medium text-gray-900">{{ role.label }}</span>
             </button>
           </div>
@@ -1382,39 +1625,39 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <!-- Search Bar -->
+    <!-- Search Bar - Responsive positioning -->
     <div
       v-if="isGuestInfoComplete"
-      class="absolute top-4 left-1/2 transform -translate-x-1/2 z-10 w-full max-w-md px-4"
+      class="absolute top-4 left-4 right-4 sm:left-1/2 sm:right-auto sm:transform sm:-translate-x-1/2 z-10 sm:w-full sm:max-w-md sm:px-4"
     >
       <div class="bg-white rounded-lg shadow-lg">
         <div class="relative">
           <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <MagnifyingGlassIcon class="h-5 w-5 text-gray-400" />
+            <MagnifyingGlassIcon class="h-4 w-4 sm:h-5 sm:w-5 text-gray-400" />
           </div>
           <input
             v-model="searchQuery"
             type="text"
             placeholder="Search for facilities..."
-            class="w-full pl-10 pr-10 py-3 border-0 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+            class="w-full pl-9 sm:pl-10 pr-10 py-2.5 sm:py-3 border-0 rounded-lg focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm"
           />
           <button
             v-if="searchQuery"
             @click="clearSearch"
             class="absolute inset-y-0 right-0 pr-3 flex items-center"
           >
-            <XMarkIcon class="h-5 w-5 text-gray-400 hover:text-gray-600" />
+            <XMarkIcon class="h-4 w-4 sm:h-5 sm:w-5 text-gray-400 hover:text-gray-600" />
           </button>
         </div>
 
         <div
           v-if="showSearchResults"
-          class="mt-1 max-h-60 overflow-y-auto border-t border-gray-200"
+          class="mt-1 max-h-48 sm:max-h-60 overflow-y-auto border-t border-gray-200"
         >
-          <div v-if="isSearching" class="p-4 text-center text-gray-500 text-sm">
+          <div v-if="isSearching" class="p-3 sm:p-4 text-center text-gray-500 text-xs sm:text-sm">
             Searching...
           </div>
-          <div v-else-if="filteredLocations.length === 0" class="p-4 text-center text-gray-500 text-sm">
+          <div v-else-if="filteredLocations.length === 0" class="p-3 sm:p-4 text-center text-gray-500 text-xs sm:text-sm">
             No facilities found
           </div>
           <div v-else>
@@ -1422,13 +1665,13 @@ onBeforeUnmount(() => {
               v-for="location in filteredLocations"
               :key="location.id"
               @click="selectSearchResult(location)"
-              class="w-full text-left px-4 py-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0 transition-colors"
+              class="w-full text-left px-3 sm:px-4 py-2.5 sm:py-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0 transition-colors"
             >
               <div class="flex items-center gap-2">
-                <span class="text-xl">{{ location.icon }}</span>
-                <div class="flex-1">
-                  <div class="font-medium text-sm text-gray-900">{{ location.name }}</div>
-                  <div class="text-xs text-gray-500 mt-1">{{ location.markerType }} • {{ location.category }}</div>
+                <span class="text-lg sm:text-xl">{{ location.icon }}</span>
+                <div class="flex-1 min-w-0">
+                  <div class="font-medium text-xs sm:text-sm text-gray-900 truncate">{{ location.name }}</div>
+                  <div class="text-xs text-gray-500 mt-0.5 truncate">{{ location.markerType }} • {{ location.category }}</div>
                 </div>
               </div>
             </button>
@@ -1437,198 +1680,147 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <!-- User Profile Button -->
+    <!-- Transport Mode Selector - Bottom left for both mobile and desktop -->
     <div
       v-if="isGuestInfoComplete"
-      class="absolute top-4 right-4 z-10"
+      class="absolute bottom-4 left-4 z-10"
     >
-      <div class="relative group">
+      <div class="bg-white rounded-lg shadow-lg p-1.5 sm:p-2 flex gap-1 sm:gap-2 flex-wrap max-w-[calc(100vw-6rem)] sm:max-w-none">
         <button
-          class="flex items-center gap-2 bg-white hover:bg-gray-50 px-4 py-2 rounded-lg shadow-lg transition-colors"
+          v-for="mode in transportModes"
+          :key="mode.value"
+          @click="transportMode = mode.value"
+          :class="[
+            'px-2.5 py-2 sm:px-3 sm:py-2 rounded-md text-xs sm:text-sm font-medium transition-all flex items-center justify-center gap-1 min-w-[44px]',
+            transportMode === mode.value
+              ? 'bg-blue-600 text-white'
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          ]"
+          :title="mode.label"
         >
-          <UserCircleIcon class="h-5 w-5 text-blue-600" />
-          <div class="text-left hidden sm:block">
-            <div class="text-xs font-semibold text-gray-900">{{ guestInfo.nickname }}</div>
-            <div class="text-xs text-gray-500">{{ guestInfo.role }}</div>
-          </div>
+          <span class="text-base sm:text-lg">{{ mode.icon }}</span>
+          <span class="hidden lg:inline text-xs">{{ mode.label }}</span>
         </button>
+      </div>
+    </div>
 
-        <div class="absolute right-0 top-full mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
-          <button
-            @click="clearGuestSession"
-            class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-          >
-            Sign Out
-          </button>
+    <!-- User Profile Button -->
+    <div
+        v-if="isGuestInfoComplete"
+        class="absolute top-4 right-4 z-10"
+        >
+        <div class="flex items-center gap-2 bg-white px-3 py-2 sm:px-4 sm:py-2 rounded-lg shadow-lg">
+            <UserCircleIcon class="h-5 w-5 text-blue-600" />
+            <div class="text-left hidden sm:block">
+            <div class="text-xs font-semibold text-gray-900 truncate max-w-[120px]">{{ guestInfo.nickname }}</div>
+            <div class="text-xs text-gray-500">{{ guestInfo.role }}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Route Info Panel - Responsive, hidden on small mobile to avoid overlap -->
+    <div
+      v-if="isGuestInfoComplete && routeInfo"
+      class="hidden sm:block absolute top-20 left-4 bg-white rounded-lg shadow-lg w-64 sm:w-72 lg:max-w-xs z-10 border border-gray-200"
+    >
+      <div class="px-3 py-2 border-b border-gray-200 bg-gray-900 flex justify-between items-center">
+        <h3 class="font-semibold text-white text-xs sm:text-sm">Route Info</h3>
+        <button
+          @click="routeInfo = null"
+          class="text-gray-400 hover:text-white transition text-lg leading-none w-5 h-5 flex items-center justify-center sm:hidden"
+        >
+          ×
+        </button>
+      </div>
+      <div class="px-3 py-2 text-xs text-gray-700 leading-relaxed whitespace-pre-line max-h-32 sm:max-h-40 overflow-y-auto">
+        {{ routeInfo }}
+      </div>
+    </div>
+
+    <!-- Navigation Instructions Panel - Responsive, cleaner mobile layout -->
+    <div
+      v-if="showInstructions"
+      class="absolute left-4 right-4 bottom-20 sm:left-auto sm:right-4 sm:bottom-4 sm:w-72 bg-white rounded-lg shadow-lg z-20 max-h-52 sm:max-h-72 overflow-hidden flex flex-col border border-gray-200"
+    >
+      <div class="px-3 py-2 border-b border-gray-200 flex justify-between items-center bg-gray-900">
+        <h3 class="font-semibold text-white text-xs sm:text-sm">Navigation</h3>
+        <button
+          @click="showInstructions = false"
+          class="text-gray-400 hover:text-white transition text-lg leading-none w-5 h-5 flex items-center justify-center"
+        >
+          ×
+        </button>
+      </div>
+      <div class="overflow-y-auto">
+        <div
+          v-for="(instruction, idx) in navigationInstructions"
+          :key="idx"
+          class="flex items-start gap-2 px-3 py-2 border-b border-gray-100 last:border-b-0 hover:bg-gray-50 transition"
+        >
+          <span class="text-sm sm:text-base mt-0.5">{{ instruction.icon }}</span>
+          <div class="flex-1 min-w-0">
+            <p class="text-xs font-medium text-gray-900 leading-snug">{{ instruction.text }}</p>
+            <p class="text-xs text-gray-500 mt-0.5">{{ instruction.distance }}</p>
+          </div>
         </div>
       </div>
     </div>
 
-<!-- Route Info Panel -->
-<div
-  v-if="isGuestInfoComplete && routeInfo"
-  class="absolute top-20 left-4 bg-white rounded-lg shadow-lg max-w-xs z-10 border border-gray-200"
->
-  <div class="px-3 py-2 border-b border-gray-200 bg-gray-900">
-    <h3 class="font-semibold text-white text-sm">Route Info</h3>
-  </div>
-  <div class="px-3 py-2 text-xs text-gray-700 leading-relaxed whitespace-pre-line">
-    {{ routeInfo }}
-  </div>
-</div>
-
-    <!-- Navigation Instructions Panel -->
-<!-- Navigation Instructions Panel -->
-<div
-  v-if="showInstructions"
-  class="absolute bottom-4 right-4 w-72 bg-white rounded-lg shadow-lg z-20 max-h-72 overflow-hidden flex flex-col border border-gray-200"
->
-  <div class="px-3 py-2 border-b border-gray-200 flex justify-between items-center bg-gray-900">
-    <h3 class="font-semibold text-white text-sm">Navigation</h3>
-    <button
-      @click="showInstructions = false"
-      class="text-gray-400 hover:text-white transition text-lg leading-none w-5 h-5 flex items-center justify-center"
-    >
-      ×
-    </button>
-  </div>
-  <div class="overflow-y-auto">
-    <div
-      v-for="(instruction, idx) in navigationInstructions"
-      :key="idx"
-      class="flex items-start gap-2 px-3 py-2 border-b border-gray-100 last:border-b-0 hover:bg-gray-50 transition"
-    >
-      <span class="text-base mt-0.5">{{ instruction.icon }}</span>
-      <div class="flex-1 min-w-0">
-        <p class="text-xs font-medium text-gray-900 leading-snug">{{ instruction.text }}</p>
-        <p class="text-xs text-gray-500 mt-0.5">{{ instruction.distance }}</p>
-      </div>
-    </div>
-  </div>
-</div>
-
-    <!-- Note Modal -->
-     <Modal :show="showNoteModal" @close="showNoteModal = false">
+    <!-- Review Modal - Responsive -->
+    <Modal :show="isReviewModalOpen" @close="isReviewModalOpen = false">
       <div class="relative bg-white rounded-lg shadow-2xl w-full max-w-md mx-auto">
-        <div class="px-6 py-4 border-b border-gray-200">
-          <div class="flex items-center justify-between">
+        <div class="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
+          <div class="flex items-center justify-between mb-4">
             <div class="flex items-center gap-2">
-              <span class="text-2xl">📝</span>
-              <h3 class="text-lg font-bold text-gray-900">Add Note</h3>
+              <span class="text-xl sm:text-2xl">📝</span>
+              <h3 class="text-base sm:text-lg font-bold text-gray-900">Feedback</h3>
             </div>
-            <button @click="closeNoteModal" class="text-gray-400 hover:text-gray-600">
+            <button @click="isReviewModalOpen = false" class="text-gray-400 hover:text-gray-600">
               <XMarkIcon class="h-5 w-5" />
             </button>
           </div>
-        </div>
-
-        <div class="px-6 py-5">
-          <div v-if="selectedMarker" class="mb-4 p-3 bg-gray-50 rounded-lg flex items-center gap-2">
-            <span class="text-xl">{{ selectedMarker.icon }}</span>
-            <div>
-              <div class="font-semibold text-sm text-gray-900">{{ selectedMarker.name }}</div>
-              <div class="text-xs text-gray-600 mt-1">{{ selectedMarker.markerType }}</div>
-            </div>
-          </div>
 
           <div>
-            <label class="block text-sm font-semibold text-gray-900 mb-2">
-              Your Note
+            <label class="block text-xs sm:text-sm font-semibold text-gray-900 mb-2">
+              Your Feedback
             </label>
             <textarea
-              v-model="markerNote"
+              v-model="feedback"
               placeholder="Write your note about this location..."
               rows="4"
-              class="w-full px-4 py-3 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all resize-none"
+              class="w-full px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all resize-none"
               maxlength="500"
             ></textarea>
             <p class="text-xs text-gray-500 mt-1">
-              {{ markerNote.length }}/500 characters
+              {{ feedback.length }}/500 characters
             </p>
           </div>
         </div>
-
-        <div class="px-6 py-4 bg-gray-50 border-t border-gray-200 flex gap-3">
+        <div class="px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 border-t border-gray-200 flex gap-2 sm:gap-3">
           <button
-            @click="closeNoteModal"
+            @click="isReviewModalOpen = false"
             type="button"
-            class="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-            :disabled="isSavingNote"
+            :disabled="isSavingFeedback"
+            class="flex-1 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
           >
             Cancel
           </button>
           <button
-            @click="saveMarkerNote"
+            @click="saveFeedback"
             type="button"
-            :disabled="!markerNote.trim() || isSavingNote"
+            :disabled="!feedback.trim() || isSavingFeedback"
             :class="[
-              'flex-1 px-4 py-2 text-sm font-semibold rounded-lg transition-all',
-              markerNote.trim() && !isSavingNote
+              'flex-1 px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all',
+              feedback.trim() && !isSavingFeedback
                 ? 'bg-blue-600 hover:bg-blue-700 text-white'
                 : 'bg-gray-200 text-gray-400 cursor-not-allowed'
             ]"
           >
-            {{ isSavingNote ? 'Saving...' : 'Save Note' }}
+            {{ isSavingFeedback ? 'Saving...' : 'Save Feedback' }}
           </button>
         </div>
       </div>
-     </Modal>
-
-     <!-- Reviw Modal-->
-     <Modal :show="isReviewModalOpen" @close="isReviewModalOpen = false">
-        <div class="relative bg-white rounded-lg shadow-2xl w-full max-w-md mx-auto">
-            <div class="px-6 py-4 border-b border-gray-200">
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-2">
-                    <span class="text-2xl">📝</span>
-                    <h3 class="text-lg font-bold text-gray-900">Feedback</h3>
-                    </div>
-                    <button @click="isReviewModalOpen = false" class="text-gray-400 hover:text-gray-600">
-                    <XMarkIcon class="h-5 w-5" />
-                    </button>
-                </div>
-
-                <div>
-                    <label class="block text-sm font-semibold text-gray-900 mb-2">
-                    Your Feedback
-                    </label>
-                    <textarea
-                    v-model="feedback"
-                    placeholder="Write your note about this location..."
-                    rows="4"
-                    class="w-full px-4 py-3 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all resize-none"
-                    maxlength="500"
-                    ></textarea>
-                    <p class="text-xs text-gray-500 mt-1">
-                    {{ feedback.length }}/500 characters
-                    </p>
-                </div>
-                <div class="px-6 py-4 bg-gray-50 border-t border-gray-200 flex gap-3">
-                    <button
-                        @click="isReviewModalOpen = false"
-                        type="button"
-                        :disabled="isSavingFeedback"
-                        class="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                    >
-                    Cancel
-                    </button>
-                    <button
-                        @click="saveFeedback"
-                        type="button"
-                        :disabled="!feedback.trim() || isSavingFeedback"
-                        :class="[
-                            'flex-1 px-4 py-2 text-sm font-semibold rounded-lg transition-all',
-                            feedback.trim() && !isSavingFeedback
-                            ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                            : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                        ]"
-                        >
-                        {{ isSavingFeedback ? 'Saving...' : 'Save Feedback' }}
-                    </button>
-                </div>
-            </div>
-        </div>
-     </Modal>
+    </Modal>
   </div>
 </template>
 
@@ -1636,7 +1828,6 @@ onBeforeUnmount(() => {
 #map {
   height: 100vh;
   width: 100%;
-  /* Ensure map stays in its own stacking context below modals */
   position: relative;
   z-index: 0;
 }
@@ -1651,34 +1842,97 @@ onBeforeUnmount(() => {
   border: 1px solid #3B82F6;
   border-radius: 6px;
   padding: 2px 6px;
-  font-size: 12px;
+  font-size: 11px;
   color: #1E3A8A;
   font-weight: 600;
   box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+  white-space: nowrap;
+  pointer-events: none;
 }
 
-
-.max-h-60::-webkit-scrollbar {
-  width: 6px;
+.leaflet-marker-draggable {
+  cursor: move !important;
 }
 
-.max-h-60::-webkit-scrollbar-track {
+.leaflet-marker-draggable:hover {
+  cursor: grab !important;
+}
+
+.leaflet-marker-draggable:active {
+  cursor: grabbing !important;
+}
+
+/* Custom scrollbar for search results and route info */
+.max-h-48::-webkit-scrollbar,
+.max-h-60::-webkit-scrollbar,
+.max-h-32::-webkit-scrollbar,
+.max-h-40::-webkit-scrollbar {
+  width: 4px;
+}
+
+.max-h-48::-webkit-scrollbar-track,
+.max-h-60::-webkit-scrollbar-track,
+.max-h-32::-webkit-scrollbar-track,
+.max-h-40::-webkit-scrollbar-track {
   background: #f1f1f1;
 }
 
-.max-h-60::-webkit-scrollbar-thumb {
+.max-h-48::-webkit-scrollbar-thumb,
+.max-h-60::-webkit-scrollbar-thumb,
+.max-h-32::-webkit-scrollbar-thumb,
+.max-h-40::-webkit-scrollbar-thumb {
   background: #888;
   border-radius: 3px;
 }
 
-.max-h-60::-webkit-scrollbar-thumb:hover {
+.max-h-48::-webkit-scrollbar-thumb:hover,
+.max-h-60::-webkit-scrollbar-thumb:hover,
+.max-h-32::-webkit-scrollbar-thumb:hover,
+.max-h-40::-webkit-scrollbar-thumb:hover {
   background: #555;
 }
 
-@media (max-width: 768px) {
-  .absolute.top-20.left-4 {
-    max-width: calc(100vw - 2rem);
-    font-size: 0.875rem;
+/* Mobile optimization */
+@media (max-width: 640px) {
+  /* Ensure touch-friendly sizes */
+  button {
+    min-height: 44px;
   }
+
+  /* Prevent text selection on buttons for better mobile UX */
+  button {
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+}
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.user-location-marker {
+  background: none !important;
+  border: none !important;
+}
+
+.user-popup {
+  font-family: system-ui, -apple-system, sans-serif;
+  font-weight: 500;
+}
+
+/* Accuracy circle styling */
+.leaflet-interactive {
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 </style>
