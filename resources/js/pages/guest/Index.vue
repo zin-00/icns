@@ -2,6 +2,7 @@
 import GuestMap from '../../Components/map/GuestMap.vue';
 import { Head } from '@inertiajs/vue3';
 import GuestMapV1 from '../../Components/map/GuestMapV1.vue';
+import GuestMapV2 from '../../Components/map/GuestMapV2.vue';
 
 const props = defineProps({
   facilities: {
@@ -9,6 +10,10 @@ const props = defineProps({
     default: () => []
   },
   notes: {
+    type: Array,
+    default: () => []
+  },
+  polygons: {
     type: Array,
     default: () => []
   }
@@ -20,10 +25,7 @@ const props = defineProps({
 <template>
   <div>
     <div class="w-full h-screen overflow-hidden">
-      <GuestMapV1 :facilities="facilities" :notes="notes" />
-       <!-- <LeafletMap :facilities="facilities" /> -->
-
-       <!-- <PathFinder/> -->
+      <GuestMapV2 :facilities="facilities" :notes="notes" :polygons="polygons" />
     </div>
   </div>
 </template>

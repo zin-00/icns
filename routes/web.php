@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Facilty\FacilityController;
+use App\Http\Controllers\FacilityPolygonController;
 use App\Http\Controllers\Feedback\FeedbackController;
 use App\Http\Controllers\Guest\GuestController;
 use App\Http\Controllers\Logs\SearchLogsController;
@@ -43,9 +44,13 @@ Route::get('/', function () {
             ];
         });
 
+    // Get all facility polygons
+    $polygons = \App\Models\FacilityPolygon::all();
+
     return Inertia::render('guest/Index', [
         'facilities' => $facilities,
         'notes' => $notes,
+        'polygons' => $polygons,
     ]);
 });
 Route::post('/create/feedback', [FeedbackController::class, 'store'])->name('feedback.create');
@@ -54,6 +59,8 @@ Route::post('/search-logs', [SearchLogsController::class, 'store'])->name('searc
 Route::get('/private-routes', [RouteController::class, 'index']);
 Route::get('/routes/export/geojson-pub', [RouteController::class, 'exportGeoJSON']);
 
+// Facility Polygon Routes (Public - for viewing)
+Route::get('/facilities/polygons', [FacilityPolygonController::class, 'index']);
 
 Route::post('/guests', [GuestController::class, 'store'])->name('guest');
 
@@ -86,6 +93,12 @@ Route::middleware('auth')->group(function () {
     require __DIR__.'/auth/profile/profile.php';
 
     Route::get('/search-logs', [RenderController::class, 'searchlog'])->name('logs.index');
+
+    // Facility Polygon Routes (Admin only)
+    Route::post('/facilities/polygons', [FacilityPolygonController::class, 'store']);
+    Route::get('/facilities/polygons/{facilityPolygon}', [FacilityPolygonController::class, 'show']);
+    Route::put('/facilities/polygons/{facilityPolygon}', [FacilityPolygonController::class, 'update']);
+    Route::delete('/facilities/polygons/{facilityPolygon}', [FacilityPolygonController::class, 'destroy']);
 
 });
     require __DIR__.'/note/note.php';

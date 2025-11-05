@@ -17,6 +17,10 @@ const props = defineProps({
   notes: {
     type: Array,
     default: () => []
+  },
+  polygons: {
+    type: Array,
+    default: () => []
   }
 })
 
@@ -74,6 +78,7 @@ const transportModes = [
 ]
 
 const noteMarkers = ref([])
+const polygonLayers = ref([])
 
 // Guest roles
 const guestRoles = [
@@ -890,6 +895,65 @@ const deleteNote = async (noteId) => {
   }
 }
 
+const displayPolygons = (polygons) => {
+  if (!map.value || !polygons || !Array.isArray(polygons)) {
+    console.warn('Cannot display polygons: map or data not ready')
+    return
+  }
+
+  // Clear existing polygon layers
+  polygonLayers.value.forEach(layer => {
+    if (map.value && map.value.hasLayer && map.value.hasLayer(layer)) {
+      try {
+        map.value.removeLayer(layer)
+      } catch (error) {
+        console.warn('Error removing polygon layer:', error)
+      }
+    }
+  })
+  polygonLayers.value = []
+
+  polygons.forEach(polygon => {
+    if (!polygon.coordinates || !Array.isArray(polygon.coordinates)) {
+      console.warn('Invalid polygon coordinates:', polygon)
+      return
+    }
+
+    try {
+      // Convert coordinates to Leaflet format [[lat, lng], [lat, lng], ...]
+      const latlngs = polygon.coordinates.map(coord => [coord.lat, coord.lng])
+
+      const polygonLayer = L.polygon(latlngs, {
+        color: polygon.color || '#3B82F6',
+        fillColor: polygon.fill_color || '#3B82F6',
+        fillOpacity: polygon.fill_opacity || 0.2,
+        weight: 2,
+        opacity: 0.8
+      })
+
+      // Only add to map if map still exists
+      if (map.value && map.value.addLayer) {
+        polygonLayer.addTo(map.value)
+
+        // Add popup with polygon info
+        const popupContent = `
+          <div class="p-2">
+            <h3 class="font-semibold text-sm mb-1">${polygon.name}</h3>
+            ${polygon.description ? `<p class="text-xs text-gray-600">${polygon.description}</p>` : ''}
+            ${polygon.type ? `<p class="text-xs text-gray-500 mt-1">Type: ${polygon.type}</p>` : ''}
+          </div>
+        `
+        polygonLayer.bindPopup(popupContent)
+
+      }
+    } catch (error) {
+      console.error('Error creating polygon:', polygon, error)
+    }
+  })
+
+  console.log(`📐 Displayed ${polygonLayers.value.length} polygons on map`)
+}
+
 const displayNotesOnMap = () => {
   // Clear existing note markers
   noteMarkers.value.forEach(nm => {
@@ -957,6 +1021,12 @@ const displayNotesOnMap = () => {
 watch(() => props.notes, () => {
   if (map.value) {
     displayNotesOnMap()
+  }
+}, { deep: true })
+
+watch(() => props.polygons, () => {
+  if (map.value) {
+    displayPolygons(props.polygons)
   }
 }, { deep: true })
 
@@ -1411,6 +1481,11 @@ const initializeMap = async () => {
 
       displayNotesOnMap()
 
+      // Display polygons on map load
+      if (props.polygons && props.polygons.length > 0) {
+        displayPolygons(props.polygons)
+      }
+
       // Add private routes
       if (privateRoutes.value) {
         privateRoutes.value.features.forEach((feature) => {
@@ -1512,6 +1587,7 @@ let channel;
 
 onMounted(() => {
     console.log('Notes:', props.notes)
+    console.log('Polygons:', props.polygons)
   if (hasGuestInfo) {
     initializeMap()
     console.log(`Welcome back, ${guestInfo.value.nickname}!`)
@@ -1523,11 +1599,97 @@ onMounted(() => {
         loadPrivateRoutes();
         console.log('Payload:', e.action);
        }
+       if(e.type === "polygon"){
+        // Reload polygons when updated
+        axios.get('/facilities/polygons').then(response => {
+          displayPolygons(response.data)
+        })
+        console.log('Polygon updated:', e.action);
+       }
     });
 })
 
 onBeforeUnmount(() => {
+  // Stop GPS tracking
   stopTracking()
+
+  // Clear all markers and layers
+  if (map.value) {
+    // Remove facility markers
+    facilityMarkers.value.forEach(marker => {
+      if (map.value.hasLayer && map.value.hasLayer(marker)) {
+        try {
+          map.value.removeLayer(marker)
+        } catch (error) {
+          console.warn('Error removing marker:', error)
+        }
+      }
+    })
+
+    // Remove note markers
+    noteMarkers.value.forEach(nm => {
+      if (map.value.hasLayer && map.value.hasLayer(nm.marker)) {
+        try {
+          map.value.removeLayer(nm.marker)
+        } catch (error) {
+          console.warn('Error removing note marker:', error)
+        }
+      }
+    })
+
+    // Remove polygon layers
+    polygonLayers.value.forEach(layer => {
+      if (map.value.hasLayer && map.value.hasLayer(layer)) {
+        try {
+          map.value.removeLayer(layer)
+        } catch (error) {
+          console.warn('Error removing polygon:', error)
+        }
+      }
+    })
+
+    // Remove GeoJSON layers
+    geoJsonLayers.value.forEach(layer => {
+      if (map.value.hasLayer && map.value.hasLayer(layer)) {
+        try {
+          map.value.removeLayer(layer)
+        } catch (error) {
+          console.warn('Error removing GeoJSON layer:', error)
+        }
+      }
+    })
+
+    // Remove route polyline and destination marker
+    if (routePolyline.value && map.value.hasLayer(routePolyline.value)) {
+      try {
+        map.value.removeLayer(routePolyline.value)
+      } catch (error) {
+        console.warn('Error removing route:', error)
+      }
+    }
+
+    if (destinationMarker.value && map.value.hasLayer(destinationMarker.value)) {
+      try {
+        map.value.removeLayer(destinationMarker.value)
+      } catch (error) {
+        console.warn('Error removing destination marker:', error)
+      }
+    }
+
+    // Remove the map instance
+    try {
+      map.value.remove()
+      map.value = null
+    } catch (error) {
+      console.warn('Error removing map:', error)
+    }
+  }
+
+  // Clear session checker interval
+  if (sessionCheckInterval.value) {
+    clearInterval(sessionCheckInterval.value)
+    sessionCheckInterval.value = null
+  }
 })
 </script>
 <template>
@@ -1848,6 +2010,17 @@ onBeforeUnmount(() => {
   box-shadow: 0 1px 4px rgba(0,0,0,0.2);
   white-space: nowrap;
   pointer-events: none;
+}
+
+.polygon-tooltip {
+  background: rgba(59, 130, 246, 0.9);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
 }
 
 .leaflet-marker-draggable {
