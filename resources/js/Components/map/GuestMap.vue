@@ -826,7 +826,7 @@ const initializeMap = async () => {
       if (locations.value.length > 0) {
         console.log(`📍 Adding ${locations.value.length} facility markers`)
         locations.value.forEach(location => {
-          addFacilityMarker(location)
+          addFacilityMarker(location, map.value)
         })
       }
 

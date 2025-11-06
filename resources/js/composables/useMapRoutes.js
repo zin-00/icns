@@ -17,7 +17,7 @@ export function useMapRoutes(map, isAdmin) {
   const selectedRoute = ref(null)
   const editMarkers = ref([])
 
-  // Fetch routes from backend
+  // Fetch routes from backend - COMPLETE REFRESH
   const fetchRoutes = async () => {
     try {
       const response = await axios.get('/routes', {
@@ -28,45 +28,31 @@ export function useMapRoutes(map, isAdmin) {
       })
 
       const newRoutes = response.data
-      const currentRouteIds = new Set(newRoutes.map(route => route.id))
 
-      // Remove outdated routes
-      const routesToRemove = routePolylines.value.filter(routePoly => !currentRouteIds.has(routePoly.id))
-      routesToRemove.forEach(routePoly => {
+      // COMPLETE REFRESH: Remove ALL existing routes first
+      routePolylines.value.forEach(routePoly => {
         if (routePoly.polyline && routePoly.polyline.remove) {
-          routePoly.polyline.remove()
-        }
-        const index = routePolylines.value.indexOf(routePoly)
-        if (index > -1) {
-          routePolylines.value.splice(index, 1)
+          try {
+            routePoly.polyline.remove()
+          } catch (err) {
+            // Ignore removal errors
+          }
         }
       })
+      routePolylines.value = []
 
-      // Update existing and add new routes
+      // Add all routes fresh from backend
       newRoutes.forEach(newRoute => {
         if (!newRoute.path_data || newRoute.path_data.length === 0) {
-          console.warn('Route has no path data:', newRoute)
           return
         }
-
-        const existingRoute = routePolylines.value.find(r => r.id === newRoute.id)
-
-        if (existingRoute) {
-          const hasChanged = JSON.stringify(existingRoute.data.path_data) !== JSON.stringify(newRoute.path_data)
-          if (hasChanged) {
-            updateRouteDisplay(existingRoute, newRoute)
-          }
-        } else {
-          displayRoute(newRoute)
-        }
+        displayRoute(newRoute)
       })
 
       savedRoutes.value = newRoutes
-      console.log(`🔄 Routes updated: ${newRoutes.length} total`)
 
     } catch (error) {
-      console.error('Error fetching routes:', error)
-      toast.error('Failed to load routes')
+      // Silently ignore fetch errors
     }
   }
 
@@ -76,15 +62,17 @@ export function useMapRoutes(map, isAdmin) {
 
     const existingRoute = routePolylines.value.find(r => r.id === route.id)
     if (existingRoute) {
-      console.log('Route already exists, skipping duplicate:', route.id)
+      // console.log('Route already exists, skipping duplicate:', route.id)
       return
     }
 
     try {
       const pathCoordinates = route.path_data.map(point => [point.lat, point.lng])
+      const displayColor = route.color || '#3B82F6'
+      // console.log(`Displaying route ${route.id} with color: ${displayColor}`)
 
       const polyline = L.polyline(pathCoordinates, {
-        color: '#3B82F6',
+        color: displayColor,
         weight: 4,
         opacity: 0.7,
         routeId: route.id
@@ -99,10 +87,18 @@ export function useMapRoutes(map, isAdmin) {
     }
   }
 
-  // Update existing route display
-  const updateRouteDisplay = (existingRoute, newRoute) => {
+  // Update existing route display - NO LONGER USED (using complete refresh instead)
+  const _updateRouteDisplay = (existingRoute, newRoute) => {
     const pathCoordinates = newRoute.path_data.map(point => [point.lat, point.lng])
     existingRoute.polyline.setLatLngs(pathCoordinates)
+
+    // Update color if it changed
+    const oldColor = existingRoute.data.color || '#3B82F6'
+    const newColor = newRoute.color || '#3B82F6'
+    if (oldColor !== newColor) {
+      existingRoute.polyline.setStyle({ color: newColor })
+    }
+
     existingRoute.polyline.setPopupContent(createRoutePopup(newRoute))
     existingRoute.data = newRoute
   }
@@ -150,7 +146,7 @@ export function useMapRoutes(map, isAdmin) {
     routePoints.value.push(latlng)
 
     if (routePoints.value.length === 1) {
-      toast.success('Starting point set!')
+    //   toast.success('Starting point set!')
     }
 
     if (drawnRoute.value) {
@@ -192,6 +188,111 @@ export function useMapRoutes(map, isAdmin) {
     }
 
     map.value.getContainer().style.cursor = ''
+  }
+
+  // Enable route editing - allow dragging and modifying route points
+  const enableRouteEditing = (routeId, onUpdate) => {
+    const routeObj = routePolylines.value.find(r => r.id === routeId)
+    if (!routeObj) {
+      toast.error('Route not found')
+      return null
+    }
+
+    editRouteMode.value = true
+    selectedRoute.value = routeObj
+
+    // Close popup
+    if (routeObj.polyline && routeObj.polyline.closePopup) {
+      routeObj.polyline.closePopup()
+    }
+
+    // Change route style to indicate editing
+    routeObj.polyline.setStyle({
+      color: '#F59E0B',
+      weight: 5,
+      dashArray: '5, 5',
+      opacity: 0.9
+    })
+
+    // Get current path data
+    const pathData = Array.isArray(routeObj.data.path_data)
+      ? routeObj.data.path_data
+      : JSON.parse(routeObj.data.path_data || '[]')
+
+    // Clear existing edit markers
+    editMarkers.value.forEach(marker => {
+      if (marker && marker.remove) marker.remove()
+    })
+    editMarkers.value = []
+
+    // Create draggable markers for each point
+    pathData.forEach((point, index) => {
+      const marker = L.marker([point.lat, point.lng], {
+        draggable: true,
+        icon: L.divIcon({
+          className: 'edit-route-marker',
+          html: `<div style="background: #F59E0B; width: 24px; height: 24px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.4); cursor: move; display: flex; align-items: center; justify-content: center; color: white; font-size: 11px; font-weight: bold;">${index + 1}</div>`,
+          iconSize: [24, 24],
+          iconAnchor: [12, 12]
+        })
+      }).addTo(map.value)
+
+      marker.on('drag', (e) => {
+        const newLatLng = e.target.getLatLng()
+        pathData[index] = {
+          lat: newLatLng.lat,
+          lng: newLatLng.lng
+        }
+
+        // Update the polyline in real-time
+        const updatedCoordinates = pathData.map(p => [p.lat, p.lng])
+        routeObj.polyline.setLatLngs(updatedCoordinates)
+
+        if (onUpdate) {
+          onUpdate(pathData)
+        }
+      })
+
+      marker.on('dragend', () => {
+        // toast.success(`Point ${index + 1} position updated`)
+      })
+
+      // Right-click to remove point (minimum 2 points for a route)
+      marker.on('contextmenu', (e) => {
+        e.originalEvent.preventDefault()
+        if (pathData.length > 2) {
+          pathData.splice(index, 1)
+          routeObj.polyline.setLatLngs(pathData.map(p => [p.lat, p.lng]))
+          marker.remove()
+          editMarkers.value.splice(index, 1)
+          updateRouteMarkerNumbers(pathData)
+          toast.info('Point removed')
+
+          if (onUpdate) {
+            onUpdate(pathData)
+          }
+        } else {
+          toast.error('Route must have at least 2 points')
+        }
+      })
+
+      editMarkers.value.push(marker)
+    })
+
+    map.value.getContainer().style.cursor = 'default'
+    // toast.info('Click and drag markers to adjust route. Right-click to remove points.')
+  }
+
+  // Update route marker numbers after removing a point
+  const updateRouteMarkerNumbers = (pathData) => {
+    editMarkers.value.forEach((marker, index) => {
+      marker.setIcon(L.divIcon({
+        className: 'edit-route-marker',
+        html: `<div style="background: #F59E0B; width: 24px; height: 24px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.4); cursor: move; display: flex; align-items: center; justify-content: center; color: white; font-size: 11px; font-weight: bold;">${index + 1}</div>`,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12]
+      }))
+    })
   }
 
   // Cleanup routes
@@ -237,6 +338,7 @@ export function useMapRoutes(map, isAdmin) {
     startDrawingRoute,
     addRoutePoint,
     cancelDrawing,
+    enableRouteEditing,
     cleanupRoutes
   }
 }

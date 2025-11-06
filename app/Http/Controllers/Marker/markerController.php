@@ -88,13 +88,15 @@ class markerController extends Controller
             ], 404);
         }
 
+        $markerData = $marker->toArray(); // Store data before deletion
         $marker->delete();
 
-        broadcast(new MainEvent('marker', 'delete', $marker));
+        // Broadcast with stored data instead of deleted model
+        broadcast(new MainEvent('marker', 'delete', $markerData))->toOthers();
 
         return response()->json([
             'message' => 'Marker has been removed successfully',
-            'deleted_marker' => $marker // Return the deleted marker for reference
+            'deleted_marker' => $markerData // Return the stored data for reference
         ]);
     }
 }

@@ -42,7 +42,8 @@ export function useMapPolygons(map, isAdmin) {
                 p.polygon.remove()
               }
             } catch (err) {
-              console.warn('Error removing existing polygon:', err)
+              // console.warn('Error removing existing polygon:', err)
+              // Silently ignore errors when removing polygons
             }
           }
         })
@@ -54,7 +55,8 @@ export function useMapPolygons(map, isAdmin) {
         })
       }
     } catch (error) {
-      console.error('Error fetching polygons:', error)
+      // Silently ignore fetch errors for polygons
+      // console.error('Error fetching polygons:', error)
       toast.error('Failed to load facility polygons')
     }
   }
@@ -65,7 +67,7 @@ export function useMapPolygons(map, isAdmin) {
 
     const existingPolygon = polygonInstances.value.find(p => p.id === polygonData.id)
     if (existingPolygon) {
-      console.log('Polygon already exists, skipping duplicate:', polygonData.id)
+      // console.log('Polygon already exists, skipping duplicate:', polygonData.id)
       return
     }
 
@@ -108,7 +110,8 @@ export function useMapPolygons(map, isAdmin) {
         data: polygonData
       })
     } catch (error) {
-      console.error('Error displaying polygon:', error, polygonData)
+      // console.error('Error displaying polygon:', error, polygonData)
+      // Silently ignore display errors for individual polygons
     }
   }
 
@@ -219,7 +222,8 @@ export function useMapPolygons(map, isAdmin) {
           marker.remove()
         }
       } catch (err) {
-        console.warn('Error removing temporary marker:', err)
+        // console.warn('Error removing temporary marker:', err)
+        // Silently ignore cleanup errors
       }
     })
     temporaryPolygonMarkers.value = []
@@ -228,7 +232,8 @@ export function useMapPolygons(map, isAdmin) {
       try {
         temporaryPolygon.value.remove()
       } catch (err) {
-        console.warn('Error removing temporary polygon:', err)
+        // console.warn('Error removing temporary polygon:', err)
+        // Silently ignore cleanup errors
       }
       temporaryPolygon.value = null
     }
@@ -267,7 +272,8 @@ export function useMapPolygons(map, isAdmin) {
           marker.remove()
         }
       } catch (err) {
-        console.warn('Error removing temporary marker:', err)
+        // console.warn('Error removing temporary marker:', err)
+        // Silently ignore cleanup errors
       }
     })
     temporaryPolygonMarkers.value = []
@@ -277,7 +283,8 @@ export function useMapPolygons(map, isAdmin) {
       try {
         temporaryPolygon.value.remove()
       } catch (err) {
-        console.warn('Error removing temporary polygon:', err)
+        // console.warn('Error removing temporary polygon:', err)
+        // Silently ignore cleanup errors
       }
       temporaryPolygon.value = null
     }
@@ -503,7 +510,8 @@ export function useMapPolygons(map, isAdmin) {
             p.polygon.remove()
           }
         } catch (error) {
-          console.warn('Error removing polygon:', error)
+          // console.warn('Error removing polygon:', error)
+          // Silently ignore cleanup errors
         }
       }
     })

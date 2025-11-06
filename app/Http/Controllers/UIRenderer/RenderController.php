@@ -21,20 +21,12 @@ class RenderController extends Controller
         return Inertia::render('auth/Register');
     }
    public function facility(){
-        $facilities = Facility::with('marker')->paginate(5);
+        $facilities = Facility::with([ 'marker', 'photos' ])->get();
         $markers = Marker::all();
 
         return Inertia::render('admin/Facility', [
             'markers' => $markers,
-            'facilities' => $facilities->items(),
-            'pagination' => [
-                'current_page' => $facilities->currentPage(),
-                'last_page' => $facilities->lastPage(),
-                'per_page' => $facilities->perPage(),
-                'total' => $facilities->total(),
-                'from' => $facilities->firstItem(),
-                'to' => $facilities->lastItem(),
-            ],
+            'facilities' => $facilities,
             'message' => 'Facilities retrieved successfully.',
         ]);
     }

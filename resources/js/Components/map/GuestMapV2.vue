@@ -4,7 +4,6 @@ import { MagnifyingGlassIcon, XMarkIcon, UserCircleIcon } from '@heroicons/vue/2
 import axios from 'axios'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import Modal from '../Modal.vue'
 import { useReactiveStore } from '../../store/reactives/reactive'
 import { useToast } from 'vue-toastification'
 import { useMapRouting } from '../../composables/useMapRouting'
@@ -35,7 +34,6 @@ const {
   showGuestModal,
   isGuestInfoComplete,
   showInstructions,
-  isReviewModalOpen,
   isSavingFeedback,
   map,
   searchQuery,
@@ -81,6 +79,153 @@ const guestRoles = [
   { value: 'faculty', label: 'Faculty', icon: '👨‍🏫' },
   { value: 'visitor', label: 'Visitor', icon: '👤' },
 ]
+
+// Don't use backend notes - only localStorage/sessionStorage
+const localNotes = ref([])
+const localFeedback = ref([])
+const facilityPhotos = ref({})
+const isDetailsPanelVisible = ref(false)
+const isRoutingActive = ref(false)
+const selectedPhotoFile = ref(null)
+const photoPreviewUrl = ref(null)
+const photoCaption = ref('')
+const isUploadingPhoto = ref(false)
+const noteContent = ref('')
+const isSavingNote = ref(false)
+const photoInput = ref(null)
+const isShowingNoteInput = ref(false)
+const isShowingFeedbackInput = ref(false)
+const isPhotoGalleryOpen = ref(false)
+const currentPhotoIndex = ref(0)
+const showAllPhotos = ref(false)
+const activeBaseLayer = ref('navigation')
+const STORAGE_TYPE = 'localStorage' // Change to 'sessionStorage' if you prefer session-only
+
+const hydrateFeedback = () => {
+  const aggregated = []
+
+  if (Array.isArray(props.facilities)) {
+    props.facilities.forEach(facility => {
+      const markerFeedbacks = facility?.marker?.feedbacks
+      if (Array.isArray(markerFeedbacks)) {
+        markerFeedbacks.forEach(feedbackItem => {
+          if (feedbackItem) {
+            aggregated.push(feedbackItem)
+          }
+        })
+      }
+    })
+  }
+
+  localFeedback.value = aggregated
+}
+
+const hydratePhotos = () => {
+  const mapping = {}
+
+  if (Array.isArray(props.facilities)) {
+    props.facilities.forEach(facility => {
+      if (!facility || !facility.id) {
+        return
+      }
+
+      mapping[facility.id] = Array.isArray(facility.photos)
+        ? [...facility.photos]
+        : []
+    })
+  }
+
+  facilityPhotos.value = mapping
+}
+
+hydrateFeedback()
+hydratePhotos()
+
+const fetchFacilityPhotos = async (facilityId) => {
+  if (!facilityId) {
+    return
+  }
+
+  try {
+    const response = await axios.get(`/facilities/${facilityId}/photos`)
+    facilityPhotos.value = {
+      ...facilityPhotos.value,
+      [facilityId]: Array.isArray(response.data?.photos) ? response.data.photos : []
+    }
+  } catch (error) {
+    console.error('Error fetching facility photos:', error)
+  }
+}
+
+watch(() => props.notes, (newNotes) => {
+  localNotes.value = Array.isArray(newNotes) ? [...newNotes] : []
+}, { deep: true })
+
+watch(() => props.facilities, () => {
+  hydrateFeedback()
+  hydratePhotos()
+}, { deep: true })
+
+const currentFacilityId = computed(() => selectedLocation.value?.id ?? null)
+const currentMarkerId = computed(() => selectedLocation.value?.marker_id ?? selectedLocation.value?.marker?.id ?? null)
+
+const currentFacilityPhotos = computed(() => {
+  if (!currentFacilityId.value) {
+    return []
+  }
+
+  const allPhotos = facilityPhotos.value[currentFacilityId.value] || []
+
+  // Show only first 2 photos unless "Show All" is clicked
+  if (!showAllPhotos.value && allPhotos.length > 2) {
+    return allPhotos.slice(0, 2)
+  }
+
+  return allPhotos
+})
+
+const allFacilityPhotos = computed(() => {
+  if (!currentFacilityId.value) {
+    return []
+  }
+  return facilityPhotos.value[currentFacilityId.value] || []
+})
+
+const displayedPhotosCount = computed(() => {
+  if (!currentFacilityId.value) {
+    return { displayed: 0, total: 0 }
+  }
+
+  const allPhotos = facilityPhotos.value[currentFacilityId.value] || []
+  return {
+    displayed: currentFacilityPhotos.value.length,
+    total: allPhotos.length
+  }
+})
+
+const currentFacilityNotes = computed(() => {
+  if (!currentMarkerId.value) {
+    return []
+  }
+
+  return localNotes.value.filter(note => note.marker_id === currentMarkerId.value)
+})
+
+const currentFacilityFeedback = computed(() => {
+  if (!currentMarkerId.value) {
+    return []
+  }
+
+  return localFeedback.value.filter(entry => entry.marker_id === currentMarkerId.value)
+})
+
+const currentUserHasNote = computed(() => {
+  if (!currentMarkerId.value || !guestInfo.value.id) {
+    return false
+  }
+
+  return currentFacilityNotes.value.some(note => note.guest_id === guestInfo.value.id)
+})
 
 const debounce = (func, delay) => {
   let timeoutId
@@ -214,7 +359,9 @@ const locations = computed(() => {
           category: facility.category || 'General',
           description: facility.description || '',
           icon: markerTypeIcons[markerType] || markerTypeIcons.default,
-          marker: facility.marker
+          marker: facility.marker,
+          photos: Array.isArray(facility.photos) ? facility.photos : [],
+          feedbacks: facility.marker?.feedbacks || [],
         }
       } catch (error) {
         console.error('Error processing facility:', facility, error)
@@ -299,10 +446,97 @@ const generateInstructions = (route, isPrivatePath) => {
   return routingUtils.generateEnhancedInstructions(route, isPrivatePath)
 }
 
-const createRoute = async (clickLatLng, location = null) => {
+const openLocationPanel = (location, { centerOnMap = true } = {}) => {
+  if (!location) {
+    return
+  }
+
+  const isSameLocation = selectedLocation.value && selectedLocation.value.id === location.id
+
+  selectedMarker.value = location
+  selectedLocation.value = location
+  isDetailsPanelVisible.value = true
+
+  if (!isSameLocation) {
+    feedback.value = ''
+    noteContent.value = ''
+    isShowingNoteInput.value = false
+    clearPhotoSelection()
+    showAllPhotos.value = false // Reset photo display
+
+    // Load notes from localStorage/sessionStorage for this facility
+    const storage = STORAGE_TYPE === 'localStorage' ? localStorage : sessionStorage
+    const storageKey = `facility_notes_${location.id}`
+    const storedNotes = storage.getItem(storageKey)
+
+    if (storedNotes) {
+      try {
+        const parsedNotes = JSON.parse(storedNotes)
+        const now = Date.now()
+
+        // Filter out expired notes
+        const validNotes = parsedNotes.filter(note => {
+          if (note.expiresAt && note.expiresAt < now) {
+            return false // Expired
+          }
+          return true
+        })
+
+        // Save back without expired notes
+        if (validNotes.length !== parsedNotes.length) {
+          storage.setItem(storageKey, JSON.stringify(validNotes))
+        }
+
+        // Merge valid notes with local notes
+        const storageNoteIds = new Set(validNotes.map(n => n.id))
+        const otherNotes = localNotes.value.filter(n => !storageNoteIds.has(n.id))
+        localNotes.value = [...validNotes, ...otherNotes]
+      } catch (e) {
+        console.warn('Error parsing stored notes:', e)
+      }
+    }
+  }
+
+  if (location.id) {
+    fetchFacilityPhotos(location.id)
+  }
+
+  if (centerOnMap && map.value) {
+    try {
+      map.value.panTo([location.lat, location.lng], { animate: true })
+    } catch (error) {
+      console.warn('Failed to pan to location:', error)
+    }
+  }
+}
+
+const closeDetailsPanel = () => {
+  isDetailsPanelVisible.value = false
+}
+
+const startRouteToSelected = () => {
+  if (!selectedLocation.value || !map.value) {
+    toast.error('Select a destination first')
+    return
+  }
+
+  createRoute(L.latLng(selectedLocation.value.lat, selectedLocation.value.lng), selectedLocation.value)
+}
+
+const createRoute = async (clickLatLng, location = null, routeColor = null) => {
   if (!tracking.userLocation.value) {
     toast.error('Waiting for GPS location...')
     return
+  }
+
+  if (location) {
+    const isNewSelection = !selectedLocation.value || selectedLocation.value.id !== location.id
+    if (isNewSelection || !isDetailsPanelVisible.value) {
+      openLocationPanel(location, { centerOnMap: false })
+    }
+  } else {
+    isDetailsPanelVisible.value = false
+    selectedLocation.value = null
   }
 
   // Clear existing route safely
@@ -335,10 +569,6 @@ const createRoute = async (clickLatLng, location = null) => {
 
   // Store the position where we're calculating this route from
   lastRouteCalculationPosition.value = { lat: userPos.lat, lng: userPos.lng }
-
-  if (location) {
-    selectedLocation.value = location
-  }
 
   console.log('🔍 Calculating optimal route...')
 
@@ -374,7 +604,7 @@ const createRoute = async (clickLatLng, location = null) => {
         fullRoute.push({ lat, lng })
       }
 
-      drawRouteOnMap(fullRoute, 'hybrid', true)
+      drawRouteOnMap(fullRoute, 'hybrid', true, routeColor)
       console.log('✅ Hybrid route to campus path completed')
       return
     }
@@ -385,9 +615,9 @@ const createRoute = async (clickLatLng, location = null) => {
     console.warn('⚠️ No campus paths available, using public route only')
     const publicRoute = await routingUtils.getPublicRoute(userPos, destPos, transportMode.value)
     if (publicRoute) {
-      drawRouteOnMap(publicRoute, 'public', false)
+      drawRouteOnMap(publicRoute, 'public', false, routeColor)
     } else {
-      drawRouteOnMap([userPos, destPos], 'direct', false)
+      drawRouteOnMap([userPos, destPos], 'direct', false, routeColor)
     }
     return
   }
@@ -399,9 +629,9 @@ const createRoute = async (clickLatLng, location = null) => {
     console.warn('⚠️ Campus graph is empty, using public route only')
     const publicRoute = await routingUtils.getPublicRoute(userPos, destPos, transportMode.value)
     if (publicRoute) {
-      drawRouteOnMap(publicRoute, 'public', false)
+      drawRouteOnMap(publicRoute, 'public', false, routeColor)
     } else {
-      drawRouteOnMap([userPos, destPos], 'direct', false)
+      drawRouteOnMap([userPos, destPos], 'direct', false, routeColor)
     }
     return
   }
@@ -486,7 +716,7 @@ const createRoute = async (clickLatLng, location = null) => {
       }
     }
   } catch (error) {
-    console.error('❌ Hybrid route error:', error)
+    console.error('Hybrid route error:', error)
   }
 
   // Select the best route (shortest distance)
@@ -500,11 +730,11 @@ const createRoute = async (clickLatLng, location = null) => {
     current.distance < best.distance ? current : best
   )
 
-  console.log(`✅ Selected: ${bestRoute.type.toUpperCase()} route (${Math.round(bestRoute.distance)}m)`)
+  console.log(`Selected: ${bestRoute.type.toUpperCase()} route (${Math.round(bestRoute.distance)}m)`)
   drawRouteOnMap(bestRoute.route, bestRoute.type, bestRoute.isPrivate)
 }
 
-const drawRouteOnMap = (route, routeType, isPrivatePath) => {
+const drawRouteOnMap = (route, routeType, isPrivatePath, routeColor = null) => {
   if (!map.value) {
     console.warn('Cannot draw route: map not initialized')
     return
@@ -542,23 +772,19 @@ const drawRouteOnMap = (route, routeType, isPrivatePath) => {
     direct: '#9E9E9E'
   }
 
+  // Use database color if provided, otherwise use type-based color
+  const finalColor = routeColor || routeColors[routeType] || '#9E9E9E'
+
   routePolyline.value = L.polyline(routeCoords, {
-    color: routeColors[routeType] || '#9E9E9E',
+    color: finalColor,
     weight: 6,
     opacity: 0.8,
     smoothFactor: 1.0
   }).addTo(map.value)
 
-  const finalDest = route[route.length - 1]
-  destinationMarker.value = L.marker([finalDest.lat, finalDest.lng], {
-    title: 'Destination',
-    icon: L.divIcon({
-      className: 'destination-marker',
-      html: '<div style="background: #FF5252; width: 24px; height: 24px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);"></div>',
-      iconSize: [24, 24],
-      iconAnchor: [12, 12]
-    })
-  }).addTo(map.value)
+  isRoutingActive.value = true
+
+  // Destination marker removed - using facility marker instead
 
   const totalDistance = routingUtils.calculateRouteDistance(route)
   const distanceText = totalDistance > 1000
@@ -581,7 +807,7 @@ const drawRouteOnMap = (route, routeType, isPrivatePath) => {
   navigationInstructions.value = generateInstructions(route, isPrivatePath)
   showInstructions.value = true
 
-  console.log(`🧭 Generated ${navigationInstructions.value.length} navigation instructions`)
+  console.log(`Generated ${navigationInstructions.value.length} navigation instructions`)
 
   // Fit bounds to the new route with safeguards
   try {
@@ -595,90 +821,570 @@ const drawRouteOnMap = (route, routeType, isPrivatePath) => {
   toast.success(`Route via ${routeLabels[routeType]}`)
 }
 
+const loadAllNotesFromStorage = () => {
+  // Load notes from all facilities in localStorage/sessionStorage
+  const storage = STORAGE_TYPE === 'localStorage' ? localStorage : sessionStorage
+  const allNotes = []
+  const now = Date.now()
+
+  // Iterate through all storage keys
+  for (let i = 0; i < storage.length; i++) {
+    const key = storage.key(i)
+    if (key && key.startsWith('facility_notes_')) {
+      try {
+        const notesData = storage.getItem(key)
+        if (notesData) {
+          const notes = JSON.parse(notesData)
+          // Filter out expired notes
+          const validNotes = notes.filter(note => {
+            if (note.expiresAt && note.expiresAt < now) {
+              return false // Expired
+            }
+            return true
+          })
+
+          // Update storage if we filtered out expired notes
+          if (validNotes.length !== notes.length) {
+            storage.setItem(key, JSON.stringify(validNotes))
+          }
+
+          allNotes.push(...validNotes)
+        }
+      } catch (e) {
+        console.warn(`Error parsing notes from ${key}:`, e)
+      }
+    }
+  }
+
+  localNotes.value = allNotes
+  console.log(`📝 Loaded ${allNotes.length} notes from ${STORAGE_TYPE}`)
+}
+
+// Jump to user's current GPS location
+const jumpToMyLocation = () => {
+  if (!map.value) {
+    toast.error('Map not initialized')
+    return
+  }
+
+  if (!tracking.userLocation.value) {
+    toast.error('GPS location not available yet')
+    return
+  }
+
+  const { lat, lng } = tracking.userLocation.value
+
+  map.value.flyTo([lat, lng], 18, {
+    animate: true,
+    duration: 1.5
+  })
+
+  toast.success('Centered on your location')
+
+  // Open popup if marker exists
+  if (tracking.userMarker.value) {
+    setTimeout(() => {
+      tracking.userMarker.value.openPopup()
+      setTimeout(() => tracking.userMarker.value.closePopup(), 2000)
+    }, 1500)
+  }
+}
+
 const deleteNote = async (noteId) => {
   try {
-    await axios.delete(`/notes/${noteId}`)
-    toast.success('Note deleted successfully!')
+    const storage = STORAGE_TYPE === 'localStorage' ? localStorage : sessionStorage
 
+    // Find the note to get its facility ID
+    const noteToDelete = localNotes.value.find(n => n.id === noteId)
+    if (!noteToDelete) {
+      toast.error('Note not found')
+      return
+    }
+
+    // Get the facility associated with this note's marker
+    const facility = locations.value.find(loc => loc.marker_id === noteToDelete.marker_id)
+    if (facility) {
+      const storageKey = `facility_notes_${facility.id}`
+      const existingNotesData = storage.getItem(storageKey)
+
+      if (existingNotesData) {
+        let notesArray = JSON.parse(existingNotesData)
+        notesArray = notesArray.filter(note => note.id !== noteId)
+        storage.setItem(storageKey, JSON.stringify(notesArray))
+      }
+    }
+
+    // Remove from map - ensure safe removal
     const noteMarkerIndex = noteMarkers.value.findIndex(nm => nm.noteId === noteId)
     if (noteMarkerIndex !== -1 && map.value) {
       const marker = noteMarkers.value[noteMarkerIndex].marker
-      if (marker && map.value.hasLayer(marker)) {
-        map.value.removeLayer(marker)
+      if (marker) {
+        try {
+          // Remove all event listeners first
+          marker.off()
+          // Remove from map if it's still there
+          if (map.value.hasLayer(marker)) {
+            map.value.removeLayer(marker)
+          }
+        } catch (e) {
+          console.warn('Error removing note marker:', e)
+        }
       }
       noteMarkers.value.splice(noteMarkerIndex, 1)
     }
+
+    // Remove from local state (this will trigger the watch and redisplay)
+    localNotes.value = localNotes.value.filter(note => note.id !== noteId)
+
+    toast.success('Note deleted successfully!')
   } catch (error) {
     console.error('Error deleting note:', error)
     toast.error('Failed to delete note')
   }
 }
 
+const saveNote = async () => {
+  if (!noteContent.value.trim()) {
+    toast.error('Please enter a note before saving')
+    return
+  }
+
+  if (!guestInfo.value.id) {
+    toast.error('Guest information not found')
+    return
+  }
+
+  if (!selectedLocation.value) {
+    toast.error('Select a destination to attach the note')
+    return
+  }
+
+  isSavingNote.value = true
+
+  try {
+    const storage = STORAGE_TYPE === 'localStorage' ? localStorage : sessionStorage
+    const storageKey = `facility_notes_${selectedLocation.value.id}`
+    const expirationKey = `${storageKey}_expiration`
+
+    // Get existing notes
+    const existingNotesData = storage.getItem(storageKey)
+    let notesArray = existingNotesData ? JSON.parse(existingNotesData) : []
+
+    // Remove any expired notes
+    const now = Date.now()
+    notesArray = notesArray.filter(note => {
+      if (note.expiresAt && note.expiresAt < now) {
+        return false // Expired
+      }
+      return true
+    })
+
+    // Check if this guest already has a note for this facility
+    const existingNoteIndex = notesArray.findIndex(note => note.guest_id === guestInfo.value.id)
+
+    // Create new note with 24-hour expiration
+    const expiresAt = now + (24 * 60 * 60 * 1000) // 24 hours from now
+    const newNote = {
+      id: `${STORAGE_TYPE}_${Date.now()}`,
+      content: noteContent.value.trim(),
+      marker_id: selectedLocation.value.marker_id,
+      guest_id: guestInfo.value.id,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      expiresAt: expiresAt,
+      guest: {
+        id: guestInfo.value.id,
+        name: guestInfo.value.nickname
+      }
+    }
+
+    // Replace existing note or add new one
+    if (existingNoteIndex !== -1) {
+      // Replace old note
+      notesArray[existingNoteIndex] = newNote
+    } else {
+      // Add new note
+      notesArray.push(newNote)
+    }
+
+    // Save to storage
+    storage.setItem(storageKey, JSON.stringify(notesArray))
+
+    // Update local state - remove old note from this guest if exists
+    localNotes.value = localNotes.value.filter(note =>
+      !(note.marker_id === selectedLocation.value.marker_id && note.guest_id === guestInfo.value.id)
+    )
+    localNotes.value = [...localNotes.value, newNote]
+
+    // Refresh the page to reload all notes and ensure clean state
+      window.location.reload()
+  } catch (error) {
+    console.error('Error saving note:', error)
+    toast.error('Failed to save note')
+  } finally {
+    isSavingNote.value = false
+  }
+}
+
+const handlePhotoSelected = (event) => {
+  const file = event?.target?.files?.[0]
+
+  if (!file) {
+    return
+  }
+
+  if (photoPreviewUrl.value) {
+    URL.revokeObjectURL(photoPreviewUrl.value)
+  }
+
+  selectedPhotoFile.value = file
+  photoPreviewUrl.value = URL.createObjectURL(file)
+
+  if (event?.target) {
+    event.target.value = ''
+  }
+}
+
+const clearPhotoSelection = () => {
+  if (photoPreviewUrl.value) {
+    URL.revokeObjectURL(photoPreviewUrl.value)
+  }
+
+  selectedPhotoFile.value = null
+  photoPreviewUrl.value = null
+  photoCaption.value = ''
+
+  if (photoInput.value) {
+    photoInput.value.value = ''
+  }
+}
+
+const openNoteInput = () => {
+  // Check if user already has a note and pre-fill it
+  const existingNote = currentFacilityNotes.value.find(note => note.guest_id === guestInfo.value.id)
+  if (existingNote) {
+    noteContent.value = existingNote.content
+  } else {
+    noteContent.value = ''
+  }
+  isShowingNoteInput.value = true
+}
+
+const uploadPhoto = async () => {
+  if (!selectedLocation.value) {
+    toast.error('Select a destination before uploading photos')
+    return
+  }
+
+  if (!guestInfo.value.id) {
+    toast.error('Guest information not found')
+    return
+  }
+
+  if (!selectedPhotoFile.value) {
+    toast.error('Choose a photo to upload')
+    return
+  }
+
+  isUploadingPhoto.value = true
+
+  try {
+    const formData = new FormData()
+    formData.append('photo', selectedPhotoFile.value)
+    formData.append('guest_id', guestInfo.value.id)
+    if (photoCaption.value.trim()) {
+      formData.append('caption', photoCaption.value.trim())
+    }
+
+    const response = await axios.post(`/facilities/${selectedLocation.value.id}/photos`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    })
+
+    const uploadedPhoto = response.data.photo
+    const facilityId = selectedLocation.value.id
+    facilityPhotos.value = {
+      ...facilityPhotos.value,
+      [facilityId]: [uploadedPhoto, ...(facilityPhotos.value[facilityId] || [])]
+    }
+
+    toast.success(response.data.message || 'Photo uploaded successfully!')
+    clearPhotoSelection()
+  } catch (error) {
+    console.error('Error uploading photo:', error)
+    toast.error('Failed to upload photo')
+  } finally {
+    isUploadingPhoto.value = false
+  }
+}
+
+const triggerPhotoPicker = () => {
+  if (photoInput.value) {
+    photoInput.value.click()
+  }
+}
+
+const formatTimestamp = (value) => {
+  if (!value) {
+    return ''
+  }
+
+  try {
+    return new Date(value).toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  } catch (error) {
+    console.warn('Failed to format timestamp:', error)
+    return value
+  }
+}
+
 const displayNotesOnMap = () => {
-  // Clean up existing note markers
+  // Notes are now displayed as permanent bubbles using separate markers
+  // This avoids all tooltip animation issues during zoom
+  if (!map.value || !map.value._loaded || !Array.isArray(facilityMarkers.value)) {
+    console.warn('displayNotesOnMap: Map or markers not ready')
+    return
+  }
+
+  if (!guestInfo.value || !guestInfo.value.id) {
+    console.warn('displayNotesOnMap: Guest info not available')
+    return
+  }
+
+  // CRITICAL: Don't manipulate markers during zoom animations
+  // This prevents the _latLngToNewLayerPoint error
+  if (isZoomInProgress || map.value._animatingZoom || map.value._isZooming) {
+    console.warn('displayNotesOnMap: ⚠️ BLOCKED - Zoom in progress!')
+    // Don't retry automatically - let zoomend handler trigger it
+    return
+  }
+
+  // Extra safety: Wait a tick to ensure any pending zoom animations are complete
+  if (map.value._zoom !== map.value.getZoom()) {
+    console.warn('displayNotesOnMap: Zoom level mismatch, delaying...')
+    setTimeout(() => displayNotesOnMap(), 300)
+    return
+  }
+
+  console.log('📝 displayNotesOnMap: Starting (safe to proceed)')
+
+  // First, remove all existing note markers safely
   noteMarkers.value.forEach(nm => {
-    if (map.value && map.value.hasLayer && map.value.hasLayer(nm.marker)) {
+    if (nm.marker && map.value) {
       try {
-        map.value.removeLayer(nm.marker)
-      } catch (error) {
-        console.warn('Error removing note marker:', error)
+        // Remove all event listeners
+        nm.marker.off()
+        // Remove from map only if it's still there
+        if (map.value.hasLayer(nm.marker)) {
+          map.value.removeLayer(nm.marker)
+        }
+      } catch (e) {
+        console.warn('Error removing note marker:', e)
       }
     }
   })
   noteMarkers.value = []
 
-  if (!props.notes || !Array.isArray(props.notes) || !map.value) return
+  // Create new note markers for each facility with a note
+  facilityMarkers.value.forEach((marker, index) => {
+    const location = locations.value[index]
+    if (!location) return
 
-  props.notes.forEach(note => {
-    const facility = locations.value.find(loc => loc.id === note.marker_id)
-    if (!facility) return
+    // Find user's note for this facility
+    const userNote = localNotes.value.find(note =>
+      note.marker_id === location.marker_id &&
+      note.guest_id === guestInfo.value.id
+    )
 
-    const noteMarker = L.marker([facility.lat, facility.lng], {
-      icon: L.divIcon({
-        className: 'note-marker',
-        html: `
-          <div class="note-bubble">
-            <button class="note-delete-btn" data-note-id="${note.id}" title="Delete note">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-            <div class="note-content">${note.content}</div>
-            <div class="note-arrow"></div>
-          </div>
-        `,
-        iconSize: [200, 80],
-        iconAnchor: [100, 100]
-      }),
-      zIndexOffset: 1000
-    }).addTo(map.value)
-
-    noteMarker.on('add', () => {
-      setTimeout(() => {
-        const deleteBtn = document.querySelector(`[data-note-id="${note.id}"]`)
-        if (deleteBtn) {
-          deleteBtn.addEventListener('click', (e) => {
-            e.stopPropagation()
-            if (confirm('Are you sure you want to delete this note?')) {
-              deleteNote(note.id)
-            }
-          })
+    if (userNote) {
+      try {
+        // Escape HTML to prevent XSS
+        const escapeHtml = (text) => {
+          const div = document.createElement('div')
+          div.textContent = text
+          return div.innerHTML
         }
-      }, 100)
-    })
 
-    noteMarkers.value.push({
-      noteId: note.id,
-      marker: noteMarker
-    })
+        // Create note bubble HTML with inline styles for guaranteed visibility
+        const noteBubbleHTML = `
+          <div class="note-bubble-container" data-note-id="${userNote.id}" style="
+            background: white !important;
+            border: 2px solid #E5E7EB !important;
+            border-radius: 12px !important;
+            padding: 14px 16px !important;
+            min-width: 220px !important;
+            max-width: 300px !important;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15), 0 4px 10px rgba(0, 0, 0, 0.08) !important;
+            position: relative !important;
+            opacity: 1 !important;
+            transform: translateY(-100%) !important;
+            margin-bottom: 20px !important;
+            pointer-events: auto !important;
+          ">
+            <div class="note-bubble-header" style="
+              display: flex !important;
+              align-items: flex-start !important;
+              gap: 10px !important;
+              margin-bottom: 10px !important;
+              padding-bottom: 10px !important;
+              border-bottom: 1px solid #F3F4F6 !important;
+            ">
+              <div class="note-bubble-icon" style="font-size: 20px !important; line-height: 1 !important; flex-shrink: 0 !important;">💬</div>
+              <div class="note-bubble-meta" style="
+                flex: 1 !important;
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 3px !important;
+              ">
+                <span class="note-bubble-label" style="
+                  font-size: 11px !important;
+                  font-weight: 700 !important;
+                  color: #6366F1 !important;
+                  text-transform: uppercase !important;
+                  letter-spacing: 0.8px !important;
+                ">Your Note</span>
+                <span class="note-bubble-time" style="
+                  font-size: 10px !important;
+                  color: #9CA3AF !important;
+                  font-weight: 500 !important;
+                ">${formatTimestamp(userNote.created_at)}</span>
+              </div>
+              <button
+                class="note-bubble-delete"
+                title="Delete note"
+                data-note-id="${userNote.id}"
+                style="
+                  background: #FEE2E2 !important;
+                  border: none !important;
+                  border-radius: 6px !important;
+                  width: 24px !important;
+                  height: 24px !important;
+                  display: flex !important;
+                  align-items: center !important;
+                  justify-content: center !important;
+                  cursor: pointer !important;
+                  color: #EF4444 !important;
+                  transition: all 0.2s ease !important;
+                  flex-shrink: 0 !important;
+                  padding: 0 !important;
+                "
+              >
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                  <path d="M9 3L3 9M3 3L9 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+              </button>
+            </div>
+            <div class="note-bubble-content" style="
+              font-size: 14px !important;
+              color: #1F2937 !important;
+              line-height: 1.6 !important;
+              word-wrap: break-word !important;
+              font-weight: 400 !important;
+              padding: 0 !important;
+            ">${escapeHtml(userNote.content)}</div>
+            <div class="note-bubble-arrow" style="
+              position: absolute !important;
+              bottom: -10px !important;
+              left: 50% !important;
+              transform: translateX(-50%) !important;
+              width: 0 !important;
+              height: 0 !important;
+              border-left: 12px solid transparent !important;
+              border-right: 12px solid transparent !important;
+              border-top: 12px solid white !important;
+              filter: drop-shadow(0 3px 3px rgba(0, 0, 0, 0.1)) !important;
+            "></div>
+          </div>
+        `
+
+        // Create a custom DivIcon for the note bubble
+        const noteBubbleIcon = L.divIcon({
+          className: 'note-bubble-marker',
+          html: noteBubbleHTML,
+          iconSize: [280, 'auto'],
+          iconAnchor: [140, 70] // Center horizontally, position above marker
+        })
+
+        // SAFETY CHECK: Verify map is still valid and not zooming before adding marker
+        if (!map.value || isZoomInProgress || map.value._animatingZoom) {
+          console.warn(`Aborting note marker creation for ${location.name} - zoom in progress`)
+          return
+        }
+
+        // Create a marker at the same location as the facility marker
+        // This marker will move with map zoom/pan automatically
+        const noteMarker = L.marker([location.lat, location.lng], {
+          icon: noteBubbleIcon,
+          interactive: false, // Don't block clicks to the facility marker below
+          zIndexOffset: -1000, // Ensure it's below facility markers
+          bubblingMouseEvents: false // Prevent event bubbling issues
+        })
+
+        // Add to map with error handling
+        try {
+          noteMarker.addTo(map.value)
+        } catch (addError) {
+          console.error(`Failed to add note marker to map:`, addError)
+          return
+        }
+
+        // Store reference to note marker
+        noteMarkers.value.push({
+          noteId: userNote.id,
+          marker: noteMarker,
+          facilityMarkerId: location.marker_id
+        })
+
+        // Add click handler for delete button after marker is added to map
+        setTimeout(() => {
+          const deleteBtn = document.querySelector(`.note-bubble-delete[data-note-id="${userNote.id}"]`)
+          if (deleteBtn) {
+            deleteBtn.addEventListener('click', (e) => {
+              e.stopPropagation()
+              deleteNote(userNote.id)
+            })
+          }
+        }, 150)
+
+      } catch (error) {
+        console.error(`❌ Error creating note marker for ${location.name}:`, error)
+      }
+    }
   })
 
-  console.log(`📝 Displayed ${noteMarkers.value.length} notes on map`)
+  console.log(`📝 Created ${noteMarkers.value.length} note bubble markers`)
 }
 
-watch(() => props.notes, () => {
-  if (map.value) {
-    displayNotesOnMap()
+// Debounce timer for note display to prevent rapid updates during zoom
+let noteDisplayTimeout = null
+let isZoomInProgress = false // Track zoom state globally
+
+const debouncedDisplayNotes = () => {
+  // Skip if zoom is in progress
+  if (isZoomInProgress) {
+    console.warn('debouncedDisplayNotes: Skipping due to zoom in progress')
+    return
+  }
+
+  if (noteDisplayTimeout) {
+    clearTimeout(noteDisplayTimeout)
+  }
+  noteDisplayTimeout = setTimeout(() => {
+    // Double-check zoom state before executing
+    if (!isZoomInProgress && map.value && !map.value._animatingZoom) {
+      displayNotesOnMap()
+    }
+  }, 250) // Increased delay to 250ms
+}
+
+watch(localNotes, () => {
+  if (map.value && !isZoomInProgress) {
+    debouncedDisplayNotes()
   }
 }, { deep: true })
 
@@ -702,9 +1408,9 @@ const loadPrivateRoutes = async () => {
     if (map.value) {
       refreshPrivateRoutesOnMap()
     }
-    console.log('✅ Loaded routes from database:', privateRoutes.value)
+    console.log('Loaded routes from database:', privateRoutes.value)
   } catch (error) {
-    console.error('❌ Error loading routes from database:', error)
+    console.error('Error loading routes from database:', error)
     toast.error('Failed to load campus paths')
   }
 }
@@ -727,12 +1433,14 @@ const refreshPrivateRoutesOnMap = () => {
   })
   geoJsonLayers.value = []
 
-  // Add new route layers with enhanced visibility
+  // Add new route layers with database color
   privateRoutes.value.features.forEach((feature) => {
     if (feature.geometry && feature.geometry.type === 'LineString') {
+      const routeColor = feature.properties?.color || '#FF6B6B'
+
       const layer = L.geoJSON(feature, {
         style: {
-          color: '#FF6B6B',
+          color: routeColor,
           weight: 6,
           opacity: 0.9,
           dashArray: '10, 5',
@@ -743,20 +1451,94 @@ const refreshPrivateRoutesOnMap = () => {
 
       layer.on('click', (e) => {
         L.DomEvent.stopPropagation(e)
-        createRoute(e.latlng)
+        createRoute(e.latlng, null, feature.properties?.color)
       })
 
       geoJsonLayers.value.push(layer)
     }
   })
 
-  console.log(`✅ Added ${privateRoutes.value.features.length} campus path layers`)
+  console.log(`Added ${privateRoutes.value.features.length} campus path layers`)
   toast.success('Campus paths updated in real-time!')
 }
 
+// Load and refresh facilities with their markers
+const loadFacilities = async () => {
+  try {
+    // In Inertia, we need to fetch from root to get facilities
+    const response = await axios.get('/', {
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    })
+
+    if (response.data && response.data.props && response.data.props.facilities) {
+      react.facilities = response.data.props.facilities
+
+      // Clear and re-render all markers
+      facilityMarkers.value.forEach(marker => {
+        if (map.value && map.value.hasLayer && map.value.hasLayer(marker)) {
+          try {
+            map.value.removeLayer(marker)
+          } catch (error) {
+            console.warn('Error removing marker:', error)
+          }
+        }
+      })
+      facilityMarkers.value = []
+
+      // Re-add all facility markers
+      react.facilities.forEach(facility => {
+        if (facility.marker && facility.marker.latitude && facility.marker.longitude) {
+          addFacilityMarker(facility, map.value)
+        }
+      })
+
+      console.log('✓ Facilities loaded and markers refreshed:', react.facilities.length)
+    }
+  } catch (error) {
+    console.error('Error loading facilities:', error)
+    toast.error('Failed to load facilities')
+  }
+}
+
+// Load and refresh polygons
+const loadPolygons = async () => {
+  try {
+    const response = await axios.get('/facilities/polygons', {
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    })
+
+    if (response.data) {
+      // Clear existing polygon layers
+      polygonLayers.value.forEach(layer => {
+        if (map.value && map.value.hasLayer && map.value.hasLayer(layer)) {
+          try {
+            map.value.removeLayer(layer)
+          } catch (error) {
+            console.warn('Error removing polygon:', error)
+          }
+        }
+      })
+      polygonLayers.value = []
+
+      // Re-display all polygons
+      displayPolygons(response.data, map.value)
+      console.log('✓ Polygons loaded and refreshed')
+    }
+  } catch (error) {
+    console.error('Error loading polygons:', error)
+    toast.error('Failed to load polygons')
+  }
+}
+
 const handleLocationUpdate = (newLocation) => {
-  // Only recalculate if there's an active destination
-  if (selectedLocation.value) {
+  // Only recalculate if there's an active destination and routing is active
+  if (selectedLocation.value && isRoutingActive.value) {
     // Check if we need to recalculate based on distance moved since last calculation
     if (lastRouteCalculationPosition.value) {
       const distanceMoved = routingUtils.calculateDistance(
@@ -768,37 +1550,32 @@ const handleLocationUpdate = (newLocation) => {
 
       // Recalculate route only if moved more than 10 meters
       if (distanceMoved > 10) {
-        console.log(`🔄 User moved ${Math.round(distanceMoved)}m since last route calculation, updating route...`)
+        console.log(`User moved ${Math.round(distanceMoved)}m since last route calculation, updating route...`)
         lastRouteCalculationPosition.value = { lat: newLocation.lat, lng: newLocation.lng }
 
         // Show a subtle notification about route update
-        toast.info(`📍 Updating route from new position...`, { timeout: 2000 })
+        toast.info(`Updating route from new position...`, { timeout: 2000 })
 
         // Recalculate route - this will update instructions automatically
         createRoute(L.latLng(selectedLocation.value.lat, selectedLocation.value.lng), selectedLocation.value)
       } else {
-        console.log(`📍 User moved ${Math.round(distanceMoved)}m (< 10m threshold, keeping current route)`)
+        console.log(`User moved ${Math.round(distanceMoved)}m (< 10m threshold, keeping current route)`)
       }
-    } else {
-      // First location update with active destination, calculate initial route
-      console.log(`🎯 First GPS position with active destination, calculating initial route...`)
+    } else if (routePolyline.value) {
+      // First recalculation since panel opened while route exists
+      console.log(`Initial GPS sync for existing route, recalculating...`)
       lastRouteCalculationPosition.value = { lat: newLocation.lat, lng: newLocation.lng }
-
-      // Calculate route - this will generate initial instructions
       createRoute(L.latLng(selectedLocation.value.lat, selectedLocation.value.lng), selectedLocation.value)
     }
   }
 }
 
-const openReviewModal = (location) => {
-  selectedMarker.value = location
-  feedback.value = ''
-  isReviewModalOpen.value = true
-}
-
 const initializeMap = async () => {
   try {
     await loadPrivateRoutes()
+
+    // Load all notes from localStorage/sessionStorage
+    loadAllNotesFromStorage()
 
     // Define base map layers
     const standard = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -814,15 +1591,6 @@ const initializeMap = async () => {
       }
     )
 
-    // Satellite with labels overlay (optional enhancement)
-    const satelliteLabels = L.tileLayer(
-      'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
-      {
-        maxZoom: 19,
-        attribution: ''
-      }
-    )
-
     // Initialize map with standard view
     map.value = L.map('map', {
       center: [8.169500, 126.001838],
@@ -831,28 +1599,190 @@ const initializeMap = async () => {
       zoomControl: true
     })
 
-    // Add layer control with base layers
-    const baseMaps = {
-      '🗺️ Standard': standard,
-      '🛰️ Satellite': satellite,
-      '🛰️ Satellite + Labels': L.layerGroup([satellite, satelliteLabels])
+    activeBaseLayer.value = 'navigation'
+
+    // Registry of base layers for manual control switching
+    const baseLayerRegistry = {
+      navigation: { layer: standard },
+      satellite: { layer: satellite }
     }
 
-    L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map.value)
+    const setBaseLayer = (mode) => {
+      if (!baseLayerRegistry[mode] || activeBaseLayer.value === mode) {
+        return
+      }
+
+      const currentLayer = baseLayerRegistry[activeBaseLayer.value]?.layer
+      if (currentLayer && map.value.hasLayer(currentLayer)) {
+        map.value.removeLayer(currentLayer)
+      }
+
+      const targetLayer = baseLayerRegistry[mode].layer
+      targetLayer.addTo(map.value)
+      activeBaseLayer.value = mode
+    }
+
+    // Unified map controls (location + base layer toggle)
+    const ControlStack = L.Control.extend({
+      options: {
+        position: 'bottomright'
+      },
+      onAdd: () => {
+        const container = L.DomUtil.create('div', 'leaflet-control guest-map-controls')
+
+        container.innerHTML = `
+          <button type="button" class="guest-control-button guest-control-button__locate" data-action="locate" title="Jump to my location">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M12 5V3" />
+              <path d="M12 21v-2" />
+              <path d="M5 12H3" />
+              <path d="M21 12h-2" />
+              <path d="M19.071 4.929l-1.414 1.414" />
+              <path d="M6.343 17.657l-1.414 1.414" />
+              <path d="M4.929 4.929l1.414 1.414" />
+              <path d="M17.657 17.657l1.414 1.414" />
+            </svg>
+          </button>
+          <div class="guest-base-toggle">
+            <button type="button" class="guest-control-button" data-layer="navigation" title="Navigation view">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 20l-6-2V6l6 2 6-2 6 2v12l-6-2-6 2z" />
+                <path d="M9 8v12" />
+                <path d="M15 6v12" />
+              </svg>
+            </button>
+            <button type="button" class="guest-control-button" data-layer="satellite" title="Satellite view">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 4h6l10 10-6 6L4 10V4z" />
+                <path d="M2 12l4-4" />
+                <path d="M12 22l4-4" />
+                <path d="M14 10l-4 4" />
+              </svg>
+            </button>
+          </div>
+        `
+
+        const locateBtn = container.querySelector('[data-action="locate"]')
+        const layerButtons = container.querySelectorAll('[data-layer]')
+
+        const updateActiveState = () => {
+          layerButtons.forEach((btn) => {
+            btn.classList.toggle('is-active', btn.dataset.layer === activeBaseLayer.value)
+          })
+        }
+
+        L.DomEvent.on(locateBtn, 'click', (event) => {
+          L.DomEvent.stopPropagation(event)
+          L.DomEvent.preventDefault(event)
+          jumpToMyLocation()
+        })
+
+        layerButtons.forEach((btn) => {
+          L.DomEvent.on(btn, 'click', (event) => {
+            L.DomEvent.stopPropagation(event)
+            L.DomEvent.preventDefault(event)
+            const targetLayer = btn.dataset.layer
+            setBaseLayer(targetLayer)
+            updateActiveState()
+          })
+        })
+
+        updateActiveState()
+        L.DomEvent.disableClickPropagation(container)
+        L.DomEvent.disableScrollPropagation(container)
+        return container
+      }
+    })
+
+    map.value.addControl(new ControlStack())
 
     map.value.whenReady(() => {
-      console.log('✅ Map is fully loaded and ready')
+      console.log('Map is fully loaded and ready')
 
       // Add facility markers
       if (locations.value.length > 0) {
-        console.log(`📍 Adding ${locations.value.length} facility markers`)
+        console.log(`Adding ${locations.value.length} facility markers`)
         locations.value.forEach(location => {
-          addFacilityMarker(location, map.value, createRoute, openReviewModal)
+          const marker = addFacilityMarker(location, map.value)
+
+          if (marker) {
+            // Remove any existing popup
+            if (typeof marker.unbindPopup === 'function') {
+              marker.unbindPopup()
+            }
+
+            // Add hover popup (like Google Maps preview)
+            const popupContent = `
+              <div style="padding: 8px; min-width: 200px;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                  <span style="font-size: 20px;">${location.icon}</span>
+                  <strong style="font-size: 14px; color: #1f2937;">${location.name}</strong>
+                </div>
+                <p style="font-size: 12px; color: #6b7280; margin: 0;">${location.address || 'San Francisco • Agusan del Sur'}</p>
+                <button
+                  onclick="window.dispatchEvent(new CustomEvent('open-facility-panel', { detail: ${location.id} }))"
+                  style="margin-top: 8px; width: 100%; background: #3b82f6; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 500; cursor: pointer;"
+                  onmouseover="this.style.background='#2563eb'"
+                  onmouseout="this.style.background='#3b82f6'"
+                >
+                  View Details
+                </button>
+              </div>
+            `
+
+            marker.bindPopup(popupContent, {
+              closeButton: false,
+              className: 'facility-popup',
+              offset: [0, -15]
+            })
+
+            // Show popup on hover
+            marker.on('mouseover', function() {
+              this.openPopup()
+            })
+
+            // Keep popup open on hover over popup itself
+            marker.on('popupopen', function() {
+              const popup = this.getPopup()
+              const popupElement = popup.getElement()
+
+              if (popupElement) {
+                popupElement.addEventListener('mouseenter', () => {
+                  marker.openPopup()
+                })
+                popupElement.addEventListener('mouseleave', () => {
+                  marker.closePopup()
+                })
+              }
+            })
+
+            // Close popup when mouse leaves marker (with small delay)
+            marker.on('mouseout', function() {
+              const markerElement = this
+              setTimeout(() => {
+                const popup = markerElement.getPopup()
+                if (popup && popup.getElement()) {
+                  const popupElement = popup.getElement()
+                  if (!popupElement.matches(':hover')) {
+                    markerElement.closePopup()
+                  }
+                }
+              }, 100)
+            })
+
+            // Click opens the sidebar panel
+            marker.on('click', () => {
+              openLocationPanel(location)
+            })
+          }
         })
       }
 
-      // Display notes
-      displayNotesOnMap()
+      // Display notes after markers are settled
+      setTimeout(() => {
+        displayNotesOnMap()
+      }, 300)
 
       // Display polygons on map load
       if (props.polygons && props.polygons.length > 0) {
@@ -889,6 +1819,42 @@ const initializeMap = async () => {
         createRoute(e.latlng)
       })
 
+      // Protect note markers during zoom animations
+      let pendingNoteDisplay = false
+
+      map.value.on('zoomstart', () => {
+        // Flag that zoom is in progress
+        isZoomInProgress = true
+        map.value._isZooming = true
+        console.log('🔒 Zoom started - blocking note operations')
+      })
+
+      map.value.on('zoomend', () => {
+        // Clear zoom flag after animation completes
+        console.log('🔓 Zoom ended - allowing note operations')
+
+        // Small delay to ensure animation is fully complete
+        setTimeout(() => {
+          isZoomInProgress = false
+          map.value._isZooming = false
+
+          // If notes were pending display during zoom, show them now
+          if (pendingNoteDisplay) {
+            pendingNoteDisplay = false
+            console.log('📝 Displaying pending notes after zoom')
+            debouncedDisplayNotes()
+          }
+        }, 100)
+      })
+
+      // Track if notes need to be displayed after zoom
+      const originalDebouncedDisplayNotes = debouncedDisplayNotes
+      window.addEventListener('notesPending', () => {
+        if (isZoomInProgress) {
+          pendingNoteDisplay = true
+        }
+      })
+
       // Start GPS tracking after map is ready
       setTimeout(() => {
         tracking.startTracking(guestInfo.value, map.value, handleLocationUpdate)
@@ -902,18 +1868,25 @@ const initializeMap = async () => {
 }
 
 const selectSearchResult = (location) => {
-  selectedLocation.value = location
+  openLocationPanel(location)
   searchQuery.value = location.name
   showSearchResults.value = false
   createRoute(L.latLng(location.lat, location.lng), location)
-  console.log(`🧭 Routing to ${location.name}`)
+  console.log(`Routing to ${location.name}`)
 }
 
 const clearSearch = () => {
   searchQuery.value = ''
   selectedLocation.value = null
+  selectedMarker.value = null
   showSearchResults.value = false
   lastRouteCalculationPosition.value = null // Reset route calculation tracker
+  isRoutingActive.value = false
+  isDetailsPanelVisible.value = false
+  noteContent.value = ''
+  isShowingNoteInput.value = false
+  feedback.value = ''
+  clearPhotoSelection()
 
   if (routePolyline.value && map.value) {
     try {
@@ -938,7 +1911,7 @@ const clearSearch = () => {
 
   routeInfo.value = null
   showInstructions.value = false
-  console.log('🗑️ Route cleared')
+  console.log('Route cleared')
 }
 
 const saveFeedback = async () => {
@@ -952,19 +1925,34 @@ const saveFeedback = async () => {
     return
   }
 
+  if (!selectedLocation.value) {
+    toast.error('Select a destination before sending feedback')
+    return
+  }
+
   isSavingFeedback.value = true
 
   try {
     const response = await axios.post('/create/feedback', {
       guest_id: guestInfo.value.id,
-      marker_id: selectedMarker.value.marker.id,
+      marker_id: selectedLocation.value.marker_id,
       message: feedback.value.trim(),
     })
+
+    const createdFeedback = {
+      ...response.data.feedback,
+      message: feedback.value.trim(),
+      marker_id: selectedLocation.value.marker_id,
+      guest: {
+        id: guestInfo.value.id,
+        name: guestInfo.value.nickname
+      }
+    }
+
+    localFeedback.value = [...localFeedback.value, createdFeedback]
     message.value = response.data.message
     toast.success(message.value || 'Feedback saved successfully!')
-    isReviewModalOpen.value = false
     feedback.value = ''
-    selectedMarker.value = null
   } catch (error) {
     console.error('Error saving feedback:', error)
     toast.error('Failed to save feedback')
@@ -973,29 +1961,105 @@ const saveFeedback = async () => {
   }
 }
 
+// Photo Gallery Functions
+const openPhotoGallery = (index) => {
+  currentPhotoIndex.value = index
+  isPhotoGalleryOpen.value = true
+}
+
+const closePhotoGallery = () => {
+  isPhotoGalleryOpen.value = false
+}
+
+const nextPhoto = () => {
+  if (currentPhotoIndex.value < currentFacilityPhotos.value.length - 1) {
+    currentPhotoIndex.value++
+  }
+}
+
+const previousPhoto = () => {
+  if (currentPhotoIndex.value > 0) {
+    currentPhotoIndex.value--
+  }
+}
+
 const hasGuestInfo = loadGuestInfoFromSession()
 
 onMounted(() => {
-  console.log('📝 Notes:', props.notes)
-  console.log('📐 Polygons:', props.polygons)
+//   console.log('Notes:', props.notes)
+//   console.log('Polygons:', props.polygons)
 
   if (hasGuestInfo) {
     initializeMap()
-    console.log(`👋 Welcome back, ${guestInfo.value.nickname}!`)
+    console.log(`Welcome back, ${guestInfo.value.nickname}!`)
   }
+
+  // Listen for custom event from popup button
+  window.addEventListener('open-facility-panel', (event) => {
+    const facilityId = event.detail
+    const facility = locations.value.find(loc => loc.id === facilityId)
+    if (facility) {
+      openLocationPanel(facility)
+    }
+  })
+
+  // Listen for delete note from tooltip
+  window.addEventListener('delete-note', (event) => {
+    const noteId = event.detail
+    if (confirm('Are you sure you want to delete this note?')) {
+      deleteNote(noteId)
+    }
+  })
 
   // Listen for real-time updates
   window.Echo.channel('main-channel')
     .listen('.MainEvent', (e) => {
+      // Route events - reload all routes
       if (e.type === "route") {
         loadPrivateRoutes()
-        console.log('🔄 Route updated:', e.action)
+        console.log('Route event:', e.action)
       }
+
+      // Facility events - reload all facilities and markers
+      if (e.type === "facility") {
+        loadFacilities()
+        console.log('Facility event:', e.action)
+      }
+
+      // Marker events - reload facilities (which include markers)
+      if (e.type === "marker") {
+        loadFacilities()
+        console.log('Marker event:', e.action)
+      }
+
+      // Polygon events - reload all polygons
       if (e.type === "polygon") {
-        axios.get('/facilities/polygons').then(response => {
-          displayPolygons(response.data, map.value)
-        })
-        console.log('🔄 Polygon updated:', e.action)
+        loadPolygons()
+        console.log('Polygon event:', e.action)
+      }
+
+      // Photo events - add to local cache if creating
+      if (e.type === 'photo' && e.action === 'create' && e.data) {
+        const facilityId = e.data?.facility_id
+        if (facilityId) {
+          const existing = facilityPhotos.value[facilityId] || []
+          const alreadyPresent = existing.some(photo => photo.id === e.data.id)
+
+          if (!alreadyPresent) {
+            facilityPhotos.value = {
+              ...facilityPhotos.value,
+              [facilityId]: [e.data, ...existing]
+            }
+          }
+        }
+      }
+
+      // Feedback events - add to local cache if creating
+      if (e.type === 'feedback' && e.action === 'create' && e.data) {
+        const exists = localFeedback.value.some(item => item.id === e.data.id)
+        if (!exists) {
+          localFeedback.value = [...localFeedback.value, e.data]
+        }
       }
     })
 })
@@ -1008,6 +2072,8 @@ onBeforeUnmount(() => {
   if (sessionCheckInterval.value) {
     clearInterval(sessionCheckInterval.value)
   }
+
+  clearPhotoSelection()
 
   // Clean up map layers safely
   if (map.value) {
@@ -1035,29 +2101,506 @@ onBeforeUnmount(() => {
     }
   }
 
-  console.log('👋 Component unmounted, cleanup complete')
+  console.log('Component unmounted, cleanup complete')
 })
 </script>
 
 <template>
-  <div class="relative w-full h-screen">
-    <!-- Map Container -->
-    <div
-      id="map"
-      :class="[
-        'w-full h-full transition-all duration-300 z-0',
-        !isGuestInfoComplete ? 'blur-sm pointer-events-none' : ''
-      ]"
-    ></div>
+  <div class="relative flex h-screen w-full">
+    <transition name="details-panel">
+      <aside
+        v-if="isGuestInfoComplete && isDetailsPanelVisible && selectedLocation"
+        class="z-20 flex flex-col border-gray-200 bg-white shadow-xl
+               fixed bottom-0 left-0 right-0 max-h-[85vh] rounded-t-2xl
+               md:relative md:h-full md:w-full md:max-w-md md:border-r md:rounded-none md:max-h-full"
+      >
+        <!-- Mobile Drag Handle -->
+        <div class="md:hidden flex justify-center pt-2 pb-1">
+          <div class="w-12 h-1 bg-gray-300 rounded-full"></div>
+        </div>
 
-    <!-- Guest Info Modal -->
-    <div v-if="showGuestModal" class="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
-      <div class="relative bg-white rounded-lg shadow-2xl w-full max-w-sm mx-auto">
-        <!-- Step 1: Nickname -->
+        <div class="flex items-center justify-between border-b border-gray-200 bg-white px-4 py-3">
+          <div class="min-w-0 pr-3">
+            <div class="flex items-center gap-2">
+              <span class="text-xl">{{ selectedLocation.icon }}</span>
+              <h2 class="truncate text-base font-semibold text-gray-900">{{ selectedLocation.name }}</h2>
+            </div>
+            <p class="mt-1 text-xs text-gray-500">
+              {{ selectedLocation.department }} • {{ selectedLocation.category }}
+            </p>
+          </div>
+          <button
+            @click="closeDetailsPanel"
+            class="rounded-md p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
+          >
+            <XMarkIcon class="h-5 w-5" />
+          </button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto bg-gray-50">
+          <section class="space-y-4 px-4 py-4 bg-white">
+            <p v-if="selectedLocation.description" class="text-sm leading-relaxed text-gray-600">
+              {{ selectedLocation.description }}
+            </p>
+
+            <div class="flex flex-wrap gap-2">
+              <button
+                type="button"
+                @click="startRouteToSelected"
+                class="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+              >
+                🧭 Start Navigation
+              </button>
+              <button
+                v-if="routePolyline"
+                type="button"
+                @click="clearSearch"
+                class="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100"
+              >
+                ✖ Clear
+              </button>
+            </div>
+
+            <div v-if="routeInfo" class="rounded-lg border border-gray-200 bg-white shadow-sm">
+              <div class="border-b border-gray-200 bg-gray-100 px-3 py-2">
+                <h3 class="text-xs font-semibold text-gray-800">Route Info</h3>
+              </div>
+              <p class="whitespace-pre-line px-3 py-3 text-sm text-gray-700">{{ routeInfo }}</p>
+            </div>
+
+            <div v-if="showInstructions && navigationInstructions.length" class="rounded-lg border border-gray-200 bg-white shadow-sm">
+              <div class="border-b border-gray-200 bg-gray-100 px-3 py-2">
+                <h3 class="text-xs font-semibold text-gray-800">Navigation Steps</h3>
+              </div>
+              <div class="max-h-60 overflow-y-auto" ref="navigationInstructionsContainer">
+                <div
+                  v-for="(instruction, idx) in navigationInstructions"
+                  :key="idx"
+                  class="flex gap-3 px-3 py-3 border-b border-gray-100 last:border-b-0 hover:bg-gray-50"
+                >
+                  <span class="mt-0.5 text-lg">{{ instruction.icon }}</span>
+                  <div class="flex-1">
+                    <p class="text-sm font-medium text-gray-800">{{ instruction.text }}</p>
+                    <p class="text-xs text-gray-500">{{ instruction.distance }}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="border-t border-gray-200 px-4 py-4 bg-white">
+            <div class="mb-3 flex items-center justify-between">
+              <h3 class="text-sm font-semibold text-gray-800">Photos</h3>
+              <span class="text-xs text-gray-500">{{ displayedPhotosCount.total }} total</span>
+            </div>
+
+            <div class="space-y-3">
+              <div class="rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-4 text-center hover:border-gray-400 transition">
+                <input
+                  ref="photoInput"
+                  type="file"
+                  accept="image/*"
+                  class="hidden"
+                  @change="handlePhotoSelected"
+                />
+
+                <div v-if="!photoPreviewUrl" class="space-y-2">
+                  <p class="text-sm text-gray-600">📸 Click to upload a photo</p>
+                  <button
+                    type="button"
+                    class="inline-flex items-center justify-center rounded-md bg-gray-800 px-3 py-2 text-xs font-semibold text-white transition hover:bg-gray-700"
+                    @click="triggerPhotoPicker"
+                  >
+                    Choose Photo
+                  </button>
+                </div>
+
+                <div v-else class="space-y-3">
+                  <img :src="photoPreviewUrl" alt="Photo preview" class="mx-auto max-h-40 rounded-md object-cover shadow-sm" />
+                  <input
+                    v-model="photoCaption"
+                    type="text"
+                    maxlength="255"
+                    placeholder="Add a short caption (optional)"
+                    class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400 bg-white"
+                  />
+                  <div class="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      class="rounded-md border border-gray-300 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 transition"
+                      @click="clearPhotoSelection"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      class="rounded-md bg-gray-800 px-3 py-2 text-xs font-semibold text-white hover:bg-gray-700 transition"
+                      :disabled="isUploadingPhoto"
+                      @click="uploadPhoto"
+                    >
+                      {{ isUploadingPhoto ? 'Uploading...' : 'Save Photo' }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div v-if="displayedPhotosCount.total > 0" class="space-y-3">
+                <div class="grid grid-cols-2 gap-3">
+                  <article
+                    v-for="(photo, index) in currentFacilityPhotos"
+                    :key="photo.id"
+                    @click="openPhotoGallery(index)"
+                    class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm cursor-pointer transition hover:shadow-md hover:border-gray-300"
+                  >
+                    <img
+                      :src="photo.url"
+                      :alt="photo.caption || selectedLocation.name"
+                      class="h-28 w-full object-cover"
+                    />
+                    <div class="space-y-1 px-3 py-2 bg-gray-50">
+                      <p class="text-xs font-medium text-gray-900 truncate">
+                        {{ photo.caption || 'Shared photo' }}
+                      </p>
+                      <p class="text-[11px] text-gray-500">
+                        {{ photo.guest?.name || 'Guest' }} • {{ formatTimestamp(photo.created_at) }}
+                      </p>
+                    </div>
+                  </article>
+                </div>
+
+                <!-- Show More Button -->
+                <button
+                  v-if="displayedPhotosCount.total > 2 && !showAllPhotos"
+                  @click="showAllPhotos = true"
+                  class="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-100 hover:border-gray-400"
+                >
+                  + {{ displayedPhotosCount.total - 2 }} More Photo{{ displayedPhotosCount.total - 2 > 1 ? 's' : '' }}
+                </button>
+
+                <!-- Show Less Button -->
+                <button
+                  v-if="showAllPhotos && displayedPhotosCount.total > 2"
+                  @click="showAllPhotos = false"
+                  class="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-100 hover:border-gray-400"
+                >
+                  Show Less
+                </button>
+              </div>
+
+              <p v-else class="text-center text-sm text-gray-500">Be the first to share a photo for this place.</p>
+            </div>
+          </section>
+
+          <section class="border-t border-gray-200 px-4 py-4 space-y-3 bg-white">
+            <div class="flex items-center justify-between">
+              <h3 class="text-sm font-semibold text-gray-800">Notes</h3>
+              <span class="text-xs text-gray-500">{{ currentFacilityNotes.length }} total</span>
+            </div>
+
+            <!-- Info: One note per guest -->
+            <div class="text-xs text-gray-500 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 space-y-1">
+              <p>💡 You can add one note that will appear on the map. It expires after 24 hours and is stored in your browser ({{ STORAGE_TYPE === 'localStorage' ? 'persists across sessions' : 'session only' }}).</p>
+              <p class="font-semibold text-blue-700">📍 Notes appear as purple bubbles above markers. Click the ✕ button to delete!</p>
+            </div>
+
+            <!-- Note Input - Hidden by Default -->
+            <div v-if="isShowingNoteInput" class="space-y-2 rounded-lg border border-gray-300 bg-gray-50 p-3 shadow-sm">
+              <textarea
+                v-model="noteContent"
+                rows="3"
+                maxlength="500"
+                placeholder="Share a quick note or tip about this spot..."
+                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400 bg-white"
+                autofocus
+                @keydown.enter.prevent
+              ></textarea>
+              <div class="flex justify-end gap-2">
+                <button
+                  type="button"
+                  class="rounded-md border border-gray-300 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-100 transition"
+                  @click.prevent="isShowingNoteInput = false"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  class="rounded-md bg-gray-800 px-3 py-2 text-xs font-semibold text-white hover:bg-gray-700 transition"
+                  :disabled="isSavingNote || !noteContent.trim()"
+                  @click.prevent="saveNote"
+                >
+                  {{ isSavingNote ? 'Saving...' : 'Save Note' }}
+                </button>
+              </div>
+            </div>
+
+            <!-- Add Note Button - Only Show if Input is Hidden -->
+            <div v-if="!isShowingNoteInput">
+              <button
+                type="button"
+                class="w-full rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:border-gray-400 hover:bg-gray-100"
+                @click.prevent="openNoteInput"
+              >
+                {{ currentUserHasNote ? '✏️ Edit Your Note' : '+ Add Note' }}
+              </button>
+            </div>
+
+            <!-- Display Notes as Chat Bubbles -->
+            <div v-if="currentFacilityNotes.length" class="space-y-3">
+              <article
+                v-for="note in currentFacilityNotes"
+                :key="note.id"
+                :class="[
+                  'rounded-lg p-3 shadow-sm transition',
+                  note.guest_id === guestInfo.id
+                    ? 'ml-8 bg-blue-100 border-l-4 border-blue-500'
+                    : 'mr-8 bg-gray-100 border-l-4 border-gray-400'
+                ]"
+              >
+                <div class="flex items-start justify-between gap-3">
+                  <div>
+                    <p class="text-xs font-semibold text-gray-700">
+                      {{ note.guest?.name || 'Guest' }}
+                      <span v-if="note.guest_id === guestInfo.id" class="text-blue-600"> (You)</span>
+                    </p>
+                    <p class="text-xs text-gray-500">{{ formatTimestamp(note.created_at) }}</p>
+                  </div>
+                  <button
+                    v-if="note.guest_id === guestInfo.id"
+                    type="button"
+                    class="rounded-md p-1 text-gray-400 transition hover:bg-gray-200 hover:text-red-500"
+                    @click.prevent="deleteNote(note.id)"
+                    title="Delete note"
+                  >
+                    <XMarkIcon class="h-4 w-4" />
+                  </button>
+                </div>
+                <p class="mt-2 text-sm text-gray-800 leading-relaxed">{{ note.content }}</p>
+              </article>
+            </div>
+            <p v-else class="text-center text-sm text-gray-500">No notes yet. Be the first to share!</p>
+          </section>
+
+          <section class="border-t border-gray-200 px-4 py-4 space-y-3 bg-white">
+            <div class="flex items-center justify-between">
+              <h3 class="text-sm font-semibold text-gray-800">Feedback</h3>
+              <span class="text-xs text-gray-500">{{ currentFacilityFeedback.length }} total</span>
+            </div>
+
+            <!-- Feedback Input - Hidden by Default -->
+            <div v-if="isShowingFeedbackInput" class="space-y-2 rounded-lg border border-gray-300 bg-gray-50 p-3 shadow-sm">
+              <textarea
+                v-model="feedback"
+                rows="3"
+                maxlength="500"
+                placeholder="How was your experience here?"
+                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400 bg-white"
+                autofocus
+              ></textarea>
+              <div class="flex justify-end gap-2">
+                <button
+                  type="button"
+                  class="rounded-md border border-gray-300 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-100 transition"
+                  @click.prevent="isShowingFeedbackInput = false"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  class="rounded-md bg-gray-800 px-3 py-2 text-xs font-semibold text-white hover:bg-gray-700 transition"
+                  :disabled="isSavingFeedback || !feedback.trim()"
+                  @click.prevent="saveFeedback"
+                >
+                  {{ isSavingFeedback ? 'Sending...' : 'Submit Feedback' }}
+                </button>
+              </div>
+            </div>
+
+            <!-- Add Feedback Button - Only Show if Input is Hidden -->
+            <div v-if="!isShowingFeedbackInput">
+              <button
+                type="button"
+                class="w-full rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:border-gray-400 hover:bg-gray-100"
+                @click.prevent="isShowingFeedbackInput = !isShowingFeedbackInput"
+              >
+                + Add Feedback
+              </button>
+            </div>
+
+            <!-- Feedback List with Scroll Container -->
+            <div v-if="currentFacilityFeedback.length" class="space-y-2">
+              <h4 class="text-xs font-semibold text-gray-600 uppercase tracking-wide">Recent Feedback</h4>
+              <div class="max-h-60 overflow-y-auto space-y-3 pr-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+                <article
+                  v-for="item in currentFacilityFeedback"
+                  :key="item.id"
+                  class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-3 shadow-sm"
+                >
+                  <div class="flex items-center justify-between">
+                    <p class="text-sm font-semibold text-gray-800">{{ item.guest?.name || 'Guest' }}</p>
+                    <p class="text-xs text-gray-500">{{ formatTimestamp(item.created_at) }}</p>
+                  </div>
+                  <p class="mt-2 text-sm text-gray-700">{{ item.message }}</p>
+                </article>
+              </div>
+            </div>
+            <p v-else class="text-sm text-gray-500 text-center">No feedback yet. Share your thoughts!</p>
+          </section>
+        </div>
+      </aside>
+    </transition>
+
+    <div class="relative flex-1">
+      <div
+        id="map"
+        :class="[
+          'h-full w-full transition-all duration-300',
+          !isGuestInfoComplete ? 'blur-sm pointer-events-none' : ''
+        ]"
+      ></div>
+
+      <!-- Search Bar -->
+      <div
+        v-if="isGuestInfoComplete"
+        class="absolute top-4 left-4 right-4 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:transform z-10 sm:w-full sm:max-w-md sm:px-4"
+      >
+        <div class="bg-white rounded-lg shadow-lg">
+          <div class="relative">
+            <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+              <MagnifyingGlassIcon class="h-4 w-4 sm:h-5 sm:w-5 text-gray-400" />
+            </div>
+            <input
+              v-model="searchQuery"
+              type="text"
+              placeholder="Search for facilities..."
+              class="w-full rounded-lg border-0 py-2.5 pl-9 pr-10 text-xs focus:ring-2 focus:ring-blue-500 sm:py-3 sm:pl-10 sm:text-sm"
+            />
+            <button
+              v-if="searchQuery"
+              @click="clearSearch"
+              class="absolute inset-y-0 right-0 flex items-center pr-3"
+            >
+              <XMarkIcon class="h-4 w-4 sm:h-5 sm:w-5 text-gray-400 hover:text-gray-600" />
+            </button>
+          </div>
+
+          <div
+            v-if="showSearchResults"
+            class="mt-1 max-h-48 overflow-y-auto border-t border-gray-200 sm:max-h-60"
+          >
+            <div v-if="isSearching" class="p-3 text-center text-xs text-gray-500 sm:p-4 sm:text-sm">
+              Searching...
+            </div>
+            <div v-else-if="filteredLocations.length === 0" class="p-3 text-center text-xs text-gray-500 sm:p-4 sm:text-sm">
+              No facilities found
+            </div>
+            <div v-else>
+              <button
+                v-for="location in filteredLocations"
+                :key="location.id"
+                @click="selectSearchResult(location)"
+                class="flex w-full items-center gap-2 px-3 py-2.5 text-left transition hover:bg-gray-50 sm:px-4 sm:py-3"
+              >
+                <span class="text-lg sm:text-xl">{{ location.icon }}</span>
+                <div class="min-w-0 flex-1">
+                  <p class="truncate text-xs font-medium text-gray-900 sm:text-sm">{{ location.name }}</p>
+                  <p class="truncate text-[11px] text-gray-500">
+                    {{ location.markerType }} • {{ location.category }}
+                  </p>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Transport Mode Selector -->
+      <div v-if="isGuestInfoComplete" class="absolute bottom-4 left-4 z-10">
+        <div class="flex max-w-[calc(100vw-6rem)] flex-wrap gap-1 rounded-lg bg-white p-1.5 shadow-lg sm:max-w-none sm:p-2">
+          <button
+            v-for="mode in transportModes"
+            :key="mode.value"
+            @click="transportMode = mode.value"
+            :class="[
+              'min-w-[44px] rounded-md px-2.5 py-2 text-xs font-medium transition sm:px-3 sm:text-sm',
+              transportMode === mode.value
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            ]"
+            :title="mode.label"
+          >
+            <span class="text-base sm:text-lg">{{ mode.icon }}</span>
+            <span class="hidden text-xs lg:inline">{{ mode.label }}</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- User Profile -->
+      <div v-if="isGuestInfoComplete" class="absolute top-4 right-4 z-10">
+        <div class="flex items-center gap-2 rounded-lg bg-white px-3 py-2 shadow-lg sm:px-4">
+          <UserCircleIcon class="h-5 w-5 text-blue-600" />
+          <div class="hidden text-left sm:block">
+            <p class="max-w-[120px] truncate text-xs font-semibold text-gray-900">{{ guestInfo.nickname }}</p>
+            <p class="text-xs text-gray-500">{{ guestInfo.role }}</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Route Info Floating Panel -->
+      <div
+        v-if="isGuestInfoComplete && routeInfo && !isDetailsPanelVisible"
+        class="absolute left-4 top-20 hidden w-64 rounded-lg border border-gray-200 bg-white shadow-lg sm:block sm:w-72"
+      >
+        <div class="flex items-center justify-between border-b border-gray-200 bg-gray-900 px-3 py-2">
+          <h3 class="text-xs font-semibold text-white">Route Info</h3>
+          <button
+            @click="routeInfo = null"
+            class="flex h-5 w-5 items-center justify-center rounded text-gray-400 transition hover:text-white"
+          >
+            ×
+          </button>
+        </div>
+        <p class="max-h-40 overflow-y-auto px-3 py-2 text-xs leading-relaxed text-gray-700">
+          {{ routeInfo }}
+        </p>
+      </div>
+
+      <!-- Navigation Instructions Floating Panel -->
+      <div
+        v-if="showInstructions && !isDetailsPanelVisible"
+        class="absolute bottom-20 left-4 right-4 z-20 flex max-h-52 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg sm:bottom-4 sm:left-auto sm:w-72"
+      >
+        <div class="flex items-center justify-between border-b border-gray-200 bg-gray-900 px-3 py-2">
+          <h3 class="text-xs font-semibold text-white">Navigation</h3>
+          <button
+            @click="showInstructions = false"
+            class="flex h-5 w-5 items-center justify-center rounded text-gray-400 transition hover:text-white"
+          >
+            ×
+          </button>
+        </div>
+        <div ref="navigationInstructionsContainer" class="overflow-y-auto">
+          <div
+            v-for="(instruction, idx) in navigationInstructions"
+            :key="idx"
+            class="flex items-start gap-2 border-b border-gray-100 px-3 py-2 text-xs last:border-b-0"
+          >
+            <span class="mt-0.5 text-sm">{{ instruction.icon }}</span>
+            <div class="min-w-0 flex-1">
+              <p class="font-medium text-gray-900">{{ instruction.text }}</p>
+              <p class="text-gray-500">{{ instruction.distance }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Guest Registration Modal -->
+    <div v-if="showGuestModal" class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4">
+      <div class="relative w-full max-w-sm rounded-lg bg-white shadow-2xl">
         <div v-if="guestStep === 1" class="p-6 sm:p-8">
-          <div class="text-center mb-6 sm:mb-8">
-            <h2 class="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Welcome to Campus Navigator</h2>
-            <p class="text-xs sm:text-sm text-gray-500">Let's get started with your nickname</p>
+          <div class="mb-6 text-center sm:mb-8">
+            <h2 class="mb-2 text-xl font-bold text-gray-900 sm:text-2xl">Welcome to Campus Navigator</h2>
+            <p class="text-xs text-gray-500 sm:text-sm">Let's get started with your nickname</p>
           </div>
 
           <div class="space-y-4">
@@ -1065,8 +2608,8 @@ onBeforeUnmount(() => {
               v-model="guestInfo.nickname"
               type="text"
               placeholder="Enter your nickname"
-              class="w-full px-4 py-3 text-sm sm:text-base text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
               maxlength="50"
+              class="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 sm:text-base"
               @keyup.enter="goToStep2"
             />
 
@@ -1074,10 +2617,10 @@ onBeforeUnmount(() => {
               @click="goToStep2"
               :disabled="!guestInfo.nickname.trim()"
               :class="[
-                'w-full px-4 py-3 text-sm font-medium rounded-lg transition-all',
+                'w-full rounded-lg px-4 py-3 text-sm font-medium transition',
                 guestInfo.nickname.trim()
-                  ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                  : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  ? 'bg-blue-600 text-white hover:bg-blue-700'
+                  : 'cursor-not-allowed bg-gray-200 text-gray-400'
               ]"
             >
               Continue
@@ -1085,20 +2628,19 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <!-- Step 2: Role Selection -->
-        <div v-if="guestStep === 2" class="p-6 sm:p-8">
-          <div class="text-center mb-6 sm:mb-8">
-            <h2 class="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Select Your Role</h2>
-            <p class="text-xs sm:text-sm text-gray-500">How are you visiting our campus?</p>
+        <div v-else-if="guestStep === 2" class="p-6 sm:p-8">
+          <div class="mb-6 text-center sm:mb-8">
+            <h2 class="mb-2 text-xl font-bold text-gray-900 sm:text-2xl">Select Your Role</h2>
+            <p class="text-xs text-gray-500 sm:text-sm">How are you visiting our campus?</p>
           </div>
 
-          <div class="space-y-3 mb-6">
+          <div class="mb-6 space-y-3">
             <button
               v-for="role in guestRoles"
               :key="role.value"
               @click="guestInfo.role = role.value"
               :class="[
-                'w-full flex items-center gap-3 px-4 py-3 rounded-lg border-2 transition-all',
+                'flex w-full items-center gap-3 rounded-lg border-2 px-4 py-3 transition',
                 guestInfo.role === role.value
                   ? 'border-blue-500 bg-blue-50'
                   : 'border-gray-200 hover:border-gray-300'
@@ -1114,18 +2656,17 @@ onBeforeUnmount(() => {
               @click="saveGuestInfo"
               :disabled="!guestInfo.role"
               :class="[
-                'w-full px-4 py-3 text-sm font-medium rounded-lg transition-all',
+                'w-full rounded-lg px-4 py-3 text-sm font-medium transition',
                 guestInfo.role
-                  ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                  : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  ? 'bg-blue-600 text-white hover:bg-blue-700'
+                  : 'cursor-not-allowed bg-gray-200 text-gray-400'
               ]"
             >
               Start Exploring
             </button>
-
             <button
               @click="backToStep1"
-              class="w-full px-4 py-3 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
+              class="w-full rounded-lg px-4 py-3 text-sm font-medium text-gray-600 transition hover:text-gray-900"
             >
               Back
             </button>
@@ -1134,202 +2675,70 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <!-- Search Bar -->
+    <!-- Photo Gallery Modal -->
     <div
-      v-if="isGuestInfoComplete"
-      class="absolute top-4 left-4 right-4 sm:left-1/2 sm:right-auto sm:transform sm:-translate-x-1/2 z-10 sm:w-full sm:max-w-md sm:px-4"
+      v-if="isPhotoGalleryOpen"
+      @click="closePhotoGallery"
+      class="fixed inset-0 z-[10000] flex items-center justify-center bg-black/90 p-4"
     >
-      <div class="bg-white rounded-lg shadow-lg">
-        <div class="relative">
-          <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <MagnifyingGlassIcon class="h-4 w-4 sm:h-5 sm:w-5 text-gray-400" />
-          </div>
-          <input
-            v-model="searchQuery"
-            type="text"
-            placeholder="Search for facilities..."
-            class="w-full pl-9 sm:pl-10 pr-10 py-2.5 sm:py-3 border-0 rounded-lg focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm"
+      <div
+        @click.stop
+        class="relative w-full max-w-5xl"
+      >
+        <!-- Close Button -->
+        <button
+          @click="closePhotoGallery"
+          class="absolute -top-12 right-0 text-white hover:text-gray-300 transition"
+        >
+          <XMarkIcon class="h-8 w-8" />
+        </button>
+
+        <!-- Image Container -->
+        <div class="relative bg-white rounded-lg overflow-hidden shadow-2xl">
+          <img
+            v-if="allFacilityPhotos[currentPhotoIndex]"
+            :src="allFacilityPhotos[currentPhotoIndex].url"
+            :alt="allFacilityPhotos[currentPhotoIndex].caption || 'Photo'"
+            class="w-full max-h-[80vh] object-contain bg-gray-100"
           />
-          <button
-            v-if="searchQuery"
-            @click="clearSearch"
-            class="absolute inset-y-0 right-0 pr-3 flex items-center"
-          >
-            <XMarkIcon class="h-4 w-4 sm:h-5 sm:w-5 text-gray-400 hover:text-gray-600" />
-          </button>
-        </div>
 
-        <div
-          v-if="showSearchResults"
-          class="mt-1 max-h-48 sm:max-h-60 overflow-y-auto border-t border-gray-200"
-        >
-          <div v-if="isSearching" class="p-3 sm:p-4 text-center text-gray-500 text-xs sm:text-sm">
-            Searching...
-          </div>
-          <div v-else-if="filteredLocations.length === 0" class="p-3 sm:p-4 text-center text-gray-500 text-xs sm:text-sm">
-            No facilities found
-          </div>
-          <div v-else>
-            <button
-              v-for="location in filteredLocations"
-              :key="location.id"
-              @click="selectSearchResult(location)"
-              class="w-full text-left px-3 sm:px-4 py-2.5 sm:py-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0 transition-colors"
-            >
-              <div class="flex items-center gap-2">
-                <span class="text-lg sm:text-xl">{{ location.icon }}</span>
-                <div class="flex-1 min-w-0">
-                  <div class="font-medium text-xs sm:text-sm text-gray-900 truncate">{{ location.name }}</div>
-                  <div class="text-xs text-gray-500 mt-0.5 truncate">{{ location.markerType }} • {{ location.category }}</div>
-                </div>
-              </div>
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Transport Mode Selector -->
-    <div
-      v-if="isGuestInfoComplete"
-      class="absolute bottom-4 left-4 z-10"
-    >
-      <div class="bg-white rounded-lg shadow-lg p-1.5 sm:p-2 flex gap-1 sm:gap-2 flex-wrap max-w-[calc(100vw-6rem)] sm:max-w-none">
-        <button
-          v-for="mode in transportModes"
-          :key="mode.value"
-          @click="transportMode = mode.value"
-          :class="[
-            'px-2.5 py-2 sm:px-3 sm:py-2 rounded-md text-xs sm:text-sm font-medium transition-all flex items-center justify-center gap-1 min-w-[44px]',
-            transportMode === mode.value
-              ? 'bg-blue-600 text-white'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          ]"
-          :title="mode.label"
-        >
-          <span class="text-base sm:text-lg">{{ mode.icon }}</span>
-          <span class="hidden lg:inline text-xs">{{ mode.label }}</span>
-        </button>
-      </div>
-    </div>
-
-    <!-- User Profile Button -->
-    <div
-      v-if="isGuestInfoComplete"
-      class="absolute top-4 right-4 z-10"
-    >
-      <div class="flex items-center gap-2 bg-white px-3 py-2 sm:px-4 sm:py-2 rounded-lg shadow-lg">
-        <UserCircleIcon class="h-5 w-5 text-blue-600" />
-        <div class="text-left hidden sm:block">
-          <div class="text-xs font-semibold text-gray-900 truncate max-w-[120px]">{{ guestInfo.nickname }}</div>
-          <div class="text-xs text-gray-500">{{ guestInfo.role }}</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Route Info Panel -->
-    <div
-      v-if="isGuestInfoComplete && routeInfo"
-      class="hidden sm:block absolute top-20 left-4 bg-white rounded-lg shadow-lg w-64 sm:w-72 lg:max-w-xs z-10 border border-gray-200"
-    >
-      <div class="px-3 py-2 border-b border-gray-200 bg-gray-900 flex justify-between items-center">
-        <h3 class="font-semibold text-white text-xs sm:text-sm">Route Info</h3>
-        <button
-          @click="routeInfo = null"
-          class="text-gray-400 hover:text-white transition text-lg leading-none w-5 h-5 flex items-center justify-center sm:hidden"
-        >
-          ×
-        </button>
-      </div>
-      <div class="px-3 py-2 text-xs text-gray-700 leading-relaxed whitespace-pre-line max-h-32 sm:max-h-40 overflow-y-auto">
-        {{ routeInfo }}
-      </div>
-    </div>
-
-    <!-- Navigation Instructions Panel -->
-    <div
-      v-if="showInstructions"
-      class="absolute left-4 right-4 bottom-20 sm:left-auto sm:right-4 sm:bottom-4 sm:w-72 bg-white rounded-lg shadow-lg z-20 max-h-52 sm:max-h-72 overflow-hidden flex flex-col border border-gray-200"
-    >
-      <div class="px-3 py-2 border-b border-gray-200 flex justify-between items-center bg-gray-900">
-        <h3 class="font-semibold text-white text-xs sm:text-sm">Navigation</h3>
-        <button
-          @click="showInstructions = false"
-          class="text-gray-400 hover:text-white transition text-lg leading-none w-5 h-5 flex items-center justify-center"
-        >
-          ×
-        </button>
-      </div>
-      <div ref="navigationInstructionsContainer" class="overflow-y-auto">
-        <div
-          v-for="(instruction, idx) in navigationInstructions"
-          :key="idx"
-          class="flex items-start gap-2 px-3 py-2 border-b border-gray-100 last:border-b-0 hover:bg-gray-50 transition"
-        >
-          <span class="text-sm sm:text-base mt-0.5">{{ instruction.icon }}</span>
-          <div class="flex-1 min-w-0">
-            <p class="text-xs font-medium text-gray-900 leading-snug">{{ instruction.text }}</p>
-            <p class="text-xs text-gray-500 mt-0.5">{{ instruction.distance }}</p>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Review Modal -->
-    <Modal :show="isReviewModalOpen" @close="isReviewModalOpen = false">
-      <div class="relative bg-white rounded-lg shadow-2xl w-full max-w-md mx-auto">
-        <div class="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
-          <div class="flex items-center justify-between mb-4">
-            <div class="flex items-center gap-2">
-              <span class="text-xl sm:text-2xl">📝</span>
-              <h3 class="text-base sm:text-lg font-bold text-gray-900">Feedback</h3>
-            </div>
-            <button @click="isReviewModalOpen = false" class="text-gray-400 hover:text-gray-600">
-              <XMarkIcon class="h-5 w-5" />
-            </button>
-          </div>
-
-          <div>
-            <label class="block text-xs sm:text-sm font-semibold text-gray-900 mb-2">
-              Your Feedback
-            </label>
-            <textarea
-              v-model="feedback"
-              placeholder="Write your feedback about this location..."
-              rows="4"
-              class="w-full px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all resize-none"
-              maxlength="500"
-            ></textarea>
+          <!-- Photo Info -->
+          <div class="bg-gray-50 px-6 py-4 border-t border-gray-200">
+            <p v-if="allFacilityPhotos[currentPhotoIndex]?.caption" class="text-sm font-medium text-gray-900 mb-1">
+              {{ allFacilityPhotos[currentPhotoIndex].caption }}
+            </p>
+            <p class="text-xs text-gray-600">
+              {{ allFacilityPhotos[currentPhotoIndex]?.guest?.name || 'Guest' }} •
+              {{ formatTimestamp(allFacilityPhotos[currentPhotoIndex]?.created_at) }}
+            </p>
             <p class="text-xs text-gray-500 mt-1">
-              {{ feedback.length }}/500 characters
+              Photo {{ currentPhotoIndex + 1 }} of {{ allFacilityPhotos.length }}
             </p>
           </div>
-        </div>
-        <div class="px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 border-t border-gray-200 flex gap-2 sm:gap-3">
+
+          <!-- Navigation Buttons -->
           <button
-            @click="isReviewModalOpen = false"
-            type="button"
-            :disabled="isSavingFeedback"
-            class="flex-1 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            v-if="currentPhotoIndex > 0"
+            @click="previousPhoto"
+            class="absolute left-4 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white rounded-full p-3 shadow-lg transition"
           >
-            Cancel
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+            </svg>
           </button>
+
           <button
-            @click="saveFeedback"
-            type="button"
-            :disabled="!feedback.trim() || isSavingFeedback"
-            :class="[
-              'flex-1 px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all',
-              feedback.trim() && !isSavingFeedback
-                ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-            ]"
+            v-if="currentPhotoIndex < allFacilityPhotos.length - 1"
+            @click="nextPhoto"
+            class="absolute right-4 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white rounded-full p-3 shadow-lg transition"
           >
-            {{ isSavingFeedback ? 'Saving...' : 'Save Feedback' }}
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+            </svg>
           </button>
         </div>
       </div>
-    </Modal>
+    </div>
   </div>
 </template>
 
@@ -1339,6 +2748,72 @@ onBeforeUnmount(() => {
   width: 100%;
   position: relative;
   z-index: 0;
+}
+
+:global(.guest-map-controls) {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.96);
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.18);
+  backdrop-filter: blur(4px);
+}
+
+:global(.guest-base-toggle) {
+  display: flex;
+  gap: 8px;
+}
+
+:global(.guest-control-button) {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #374151;
+  cursor: pointer;
+  transition: transform 0.18s ease, background 0.18s ease, color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+:global(.guest-control-button svg) {
+  width: 20px;
+  height: 20px;
+}
+
+:global(.guest-control-button:hover) {
+  background: #eef2ff;
+  color: #1d4ed8;
+  border-color: #c7d2fe;
+  box-shadow: 0 8px 18px rgba(59, 130, 246, 0.25);
+  transform: translateY(-1px);
+}
+
+:global(.guest-control-button.is-active) {
+  background: #1d4ed8;
+  color: #ffffff;
+  border-color: #1d4ed8;
+  box-shadow: 0 10px 24px rgba(29, 78, 216, 0.35);
+}
+
+:global(.guest-control-button__locate) {
+  background: #111827;
+  color: #ffffff;
+  border-color: #111827;
+  width: 48px;
+  height: 48px;
+}
+
+:global(.guest-control-button__locate:hover) {
+  background: #1f2937;
+  border-color: #1f2937;
+  box-shadow: 0 8px 22px rgba(17, 24, 39, 0.35);
 }
 
 .user-marker, .destination-marker, .facility-marker {
@@ -1404,6 +2879,192 @@ onBeforeUnmount(() => {
   stroke-width: 3;
 }
 
+/* Facility popup styling (Google Maps style) */
+.facility-popup .leaflet-popup-content-wrapper {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+  padding: 0;
+  overflow: hidden;
+}
+
+.facility-popup .leaflet-popup-content {
+  margin: 0;
+  min-width: 220px;
+}
+
+.facility-popup .leaflet-popup-tip {
+  background: white;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+/* Polygon tooltip styling */
+.polygon-tooltip {
+  background: rgba(0, 0, 0, 0.8) !important;
+  border: none !important;
+  border-radius: 6px !important;
+  padding: 6px 12px !important;
+  color: white !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important;
+}
+
+.polygon-tooltip::before {
+  border-top-color: rgba(0, 0, 0, 0.8) !important;
+}
+
+/* Note Bubble Marker (Custom DivIcon - No Tooltip Issues!) */
+.note-bubble-marker {
+  background: white;
+  border: none !important;
+  pointer-events: none !important; /* Marker itself doesn't block clicks */
+}
+
+.note-bubble-container {
+  background: white;
+  border: 2px solid #E5E7EB;
+  border-radius: 12px;
+  padding: 14px 16px;
+  min-width: 220px;
+  max-width: 300px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15), 0 4px 10px rgba(0, 0, 0, 0.08);
+  position: relative;
+  animation: bubblePop 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  pointer-events: auto !important; /* Bubble content is interactive */
+}
+
+@keyframes bubblePop {
+  0% {
+    transform: scale(0.8) translateY(-100%);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1) translateY(-100%);
+    opacity: 1;
+  }
+}
+
+.note-bubble-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #F3F4F6;
+}
+
+.note-bubble-icon {
+  font-size: 20px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.note-bubble-meta {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.note-bubble-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #6366F1;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+
+.note-bubble-time {
+  font-size: 10px;
+  color: #9CA3AF;
+  font-weight: 500;
+}
+
+.note-bubble-delete {
+  background: #FEE2E2;
+  border: none;
+  border-radius: 6px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #EF4444;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.note-bubble-delete:hover {
+  background: #EF4444;
+  color: white;
+  transform: scale(1.1);
+}
+
+.note-bubble-delete:active {
+  transform: scale(0.95);
+}
+
+.note-bubble-content {
+  font-size: 14px;
+  color: #1F2937;
+  line-height: 1.6;
+  word-wrap: break-word;
+  font-weight: 400;
+  padding: 0;
+}
+
+.note-bubble-arrow {
+  position: absolute;
+  bottom: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 12px solid transparent;
+  border-right: 12px solid transparent;
+  border-top: 12px solid white;
+  filter: drop-shadow(0 3px 3px rgba(0, 0, 0, 0.1));
+}
+
+/* Arrow border (creates the outline effect) */
+.note-bubble-arrow::before {
+  content: '';
+  position: absolute;
+  bottom: 2px;
+  left: -12px;
+  width: 0;
+  height: 0;
+  border-left: 12px solid transparent;
+  border-right: 12px solid transparent;
+  border-top: 12px solid #E5E7EB;
+}
+
+/* Note bubble for own notes (displayed on map) */
+.note-bubble-own {
+  position: relative;
+  background: #DBEAFE;
+  border: 2px solid #3B82F6;
+  border-radius: 8px;
+  padding: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  max-width: 200px;
+}
+
+/* Note bubble for other users' notes */
+.note-bubble-other {
+  position: relative;
+  background: #F3F4F6;
+  border: 2px solid #9CA3AF;
+  border-radius: 8px;
+  padding: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  max-width: 200px;
+}
+
+/* Legacy note-bubble class (for backward compatibility) */
 .note-bubble {
   position: relative;
   background: white;
@@ -1452,7 +3113,16 @@ onBeforeUnmount(() => {
   height: 0;
   border-left: 10px solid transparent;
   border-right: 10px solid transparent;
-  border-top: 10px solid #fbbf24;
+  border-top: 10px solid;
+  border-top-color: inherit;
+}
+
+.note-bubble-own .note-arrow {
+  border-top-color: #3B82F6;
+}
+
+.note-bubble-other .note-arrow {
+  border-top-color: #9CA3AF;
 }
 
 /* Animation for navigation instructions update */
@@ -1469,5 +3139,47 @@ onBeforeUnmount(() => {
 
 .navigation-instruction-enter-active {
   animation: slideInRight 0.3s ease-out;
+}
+
+.details-panel-enter-active,
+.details-panel-leave-active {
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+/* Desktop: slide from left */
+@media (min-width: 768px) {
+  .details-panel-enter-from,
+  .details-panel-leave-to {
+    transform: translateX(-16px);
+    opacity: 0;
+  }
+}
+
+/* Mobile: slide from bottom */
+@media (max-width: 767px) {
+  .details-panel-enter-from,
+  .details-panel-leave-to {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+}
+
+/* Custom scrollbar for feedback list */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 3px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 </style>

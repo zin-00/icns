@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Feedback;
 
+use App\Events\MainEvent;
 use App\Http\Controllers\Controller;
 use App\Models\Feedback;
 use Illuminate\Http\Request;
@@ -19,7 +20,9 @@ class FeedbackController extends Controller
             'message' => ['required', 'string']
         ]);
 
-        $feedback = Feedback::create($data);
+        $feedback = Feedback::create($data)->load('guest');
+
+    broadcast(new MainEvent('feedback', 'create', $feedback))->toOthers();
 
         return response()->json([
             'message' => 'Feedback added.',

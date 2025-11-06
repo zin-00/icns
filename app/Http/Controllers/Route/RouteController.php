@@ -40,6 +40,7 @@ class RouteController extends Controller
             'path_data' => 'required|array|min:2',
             'path_data.*.lat' => 'required|numeric|between:-90,90',
             'path_data.*.lng' => 'required|numeric|between:-180,180',
+            'color' => 'nullable|string|regex:/^#[0-9A-Fa-f]{6}$/',
         ]);
 
         if ($validator->fails()) {
@@ -57,6 +58,7 @@ class RouteController extends Controller
                 'end_lng' => $request->end_lng,
                 'estimated_time' => $request->estimated_time,
                 'path_data' => $request->path_data,
+                'color' => $request->color ?? '#3B82F6',
             ]);
 
             broadcast(new MainEvent('route', 'create', $route));
@@ -100,6 +102,7 @@ class RouteController extends Controller
             'path_data' => 'sometimes|required|array|min:2',
             'path_data.*.lat' => 'required_with:path_data|numeric|between:-90,90',
             'path_data.*.lng' => 'required_with:path_data|numeric|between:-180,180',
+            'color' => 'nullable|string|regex:/^#[0-9A-Fa-f]{6}$/',
         ]);
 
         if ($validator->fails()) {
@@ -111,14 +114,18 @@ class RouteController extends Controller
 
         try {
             $route = Route::findOrFail($id);
-            $route->update($request->only([
+
+            $updateData = $request->only([
                 'start_lat',
                 'start_lng',
                 'end_lat',
                 'end_lng',
                 'estimated_time',
                 'path_data',
-            ]));
+                'color',
+            ]);
+
+            $route->update($updateData);
 
             broadcast(new MainEvent('route', 'update', $route));
             return response()->json($route);
@@ -137,9 +144,11 @@ class RouteController extends Controller
     {
         try {
             $route = Route::findOrFail($id);
+            $routeData = $route->toArray(); // Store data before deletion
             $route->delete();
 
-            broadcast(new MainEvent('route', 'delete', $route));
+            // Broadcast with the stored data instead of deleted model
+            broadcast(new MainEvent('route', 'delete', $routeData))->toOthers();
 
             return response()->json(['message' => 'Route deleted successfully']);
         } catch (\Exception $e) {
@@ -204,6 +213,7 @@ class RouteController extends Controller
                         'start_lng' => $route->start_lng,
                         'end_lat' => $route->end_lat,
                         'end_lng' => $route->end_lng,
+                        'color' => $route->color ?? '#3B82F6',
                     ],
                     'geometry' => [
                         'type' => 'LineString',

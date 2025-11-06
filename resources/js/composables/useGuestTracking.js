@@ -67,7 +67,7 @@ export function useGuestTracking() {
         `
         userMarker.value.setPopupContent(updatedPopupContent)
       } else {
-        console.log('📍 Creating new user marker...')
+        console.log('Creating new user marker...')
 
         userMarker.value = L.marker([userLocation.value.lat, userLocation.value.lng], {
           title: guestInfo.nickname || 'You',
@@ -97,13 +97,13 @@ export function useGuestTracking() {
           const position = marker.getLatLng()
 
           userLocation.value = {
-            lat: position.lat,
-            lng: position.lng,
+            lat: parseFloat(position.lat.toFixed(8)), // Precision: decimal(10,8)
+            lng: parseFloat(position.lng.toFixed(8)), // Precision: decimal(11,8)
             accuracy: userLocation.value?.accuracy || 10,
             isManual: true
           }
 
-          console.log('🎯 Marker dragged to:', userLocation.value)
+          console.log('Marker dragged to:', userLocation.value)
           updateAccuracyCircle(userLocation.value, map)
 
           if (onDragEnd) {
@@ -123,6 +123,7 @@ export function useGuestTracking() {
         userMarker.value.bindPopup(popupContent, {
           offset: [0, -12],
           closeButton: false,
+          autoPan: false,
           className: 'user-popup'
         })
 
@@ -136,7 +137,7 @@ export function useGuestTracking() {
         }
       }
     } catch (error) {
-      console.error('❌ Error updating user marker:', error)
+      console.error('Error updating user marker:', error)
       userMarker.value = null
     }
   }
@@ -166,15 +167,15 @@ export function useGuestTracking() {
         }
 
         const newLocation = {
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
+          lat: parseFloat(pos.coords.latitude.toFixed(8)), // Precision: decimal(10,8)
+          lng: parseFloat(pos.coords.longitude.toFixed(8)), // Precision: decimal(11,8)
           accuracy: pos.coords.accuracy,
           heading: pos.coords.heading,
           speed: pos.coords.speed
         }
 
         console.log('GPS Update:', {
-          position: `${newLocation.lat.toFixed(6)}, ${newLocation.lng.toFixed(6)}`,
+          position: `${newLocation.lat.toFixed(8)}, ${newLocation.lng.toFixed(8)}`,
           accuracy: `${Math.round(newLocation.accuracy)}m`,
           heading: newLocation.heading,
           speed: newLocation.speed
@@ -193,12 +194,13 @@ export function useGuestTracking() {
             updateUserMarker(guestInfo, map, onLocationUpdate)
             updateAccuracyCircle(newLocation, map)
 
-            if (distance > 10 && map) {
-              map.panTo([newLocation.lat, newLocation.lng], {
-                animate: true,
-                duration: 1.0
-              })
-            }
+            // Don't pan the map when location updates - keep centered on ASSCAT Bunawan
+            // if (distance > 10 && map) {
+            //   map.panTo([newLocation.lat, newLocation.lng], {
+            //     animate: true,
+            //     duration: 1.0
+            //   })
+            // }
 
             if (onLocationUpdate) {
               onLocationUpdate(newLocation)
@@ -209,12 +211,13 @@ export function useGuestTracking() {
           updateUserMarker(guestInfo, map, onLocationUpdate)
           updateAccuracyCircle(newLocation, map)
 
-          if (map) {
-            map.setView([newLocation.lat, newLocation.lng], 17, {
-              animate: true,
-              duration: 1.5
-            })
-          }
+          // Don't auto-center on user's GPS location - keep map centered on ASSCAT Bunawan
+          // if (map) {
+          //   map.setView([newLocation.lat, newLocation.lng], 17, {
+          //     animate: true,
+          //     duration: 1.5
+          //   })
+          // }
 
           toast.success(`GPS acquired! Accuracy: ${Math.round(newLocation.accuracy)}m`)
         }

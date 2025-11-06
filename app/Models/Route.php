@@ -16,6 +16,7 @@ class Route extends Model
         'end_lng',
         'estimated_time',
         'path_data',
+        'color',
     ];
 
     protected $casts = [

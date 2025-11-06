@@ -20,9 +20,9 @@ class NoteController extends Controller
             'content' => ['required', 'string', 'max:500'],
         ]);
         try {
-            $note = Note::create($validated);
+            $note = Note::create($validated)->load('guest');
 
-            broadcast(new MainEvent('note', 'create', $note));
+            broadcast(new MainEvent('note', 'create', $note))->toOthers();
             return response()->json([
                 'message' => 'Note created successfully.',
                 'note' => $note

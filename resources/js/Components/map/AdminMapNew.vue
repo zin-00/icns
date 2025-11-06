@@ -70,6 +70,7 @@ const {
   fetchRoutes,
   startDrawingRoute,
   addRoutePoint,
+  enableRouteEditing,
   cancelDrawing: cancelRouteDrawing,
   cleanupRoutes
 } = useMapRoutes(map, props.isAdmin)
@@ -127,7 +128,8 @@ const routeFormData = ref({
   end_lat: '',
   end_lng: '',
   estimated_time: '',
-  path_data: []
+  path_data: [],
+  color: '#3B82F6'
 })
 
 const showPointEditModal = ref(false)
@@ -230,7 +232,7 @@ const saveMarker = async () => {
     }
 
   } catch (error) {
-    console.error('Error saving marker:', error)
+    // console.error('Error saving marker:', error)
     toast.error(error.response?.data?.message || 'Failed to save marker')
   } finally {
     isSubmitting.value = false
@@ -282,6 +284,13 @@ const closeMarkerDragModal = () => {
 const saveRoute = async () => {
   if (isSubmitting.value) return
 
+  // If in edit mode but modal not shown, show modal first
+  if (editRouteMode.value && !showRouteModal.value) {
+    showRouteModal.value = true
+    toast.info('Adjust route details in the modal and click save to confirm.')
+    return
+  }
+
   if (!routeFormData.value.estimated_time || routeFormData.value.path_data.length < 2) {
     toast.error('Please fill in all required fields and ensure route has at least 2 points')
     return
@@ -296,8 +305,11 @@ const saveRoute = async () => {
       end_lat: parseFloat(routeFormData.value.end_lat),
       end_lng: parseFloat(routeFormData.value.end_lng),
       estimated_time: routeFormData.value.estimated_time,
-      path_data: routeFormData.value.path_data
+      path_data: routeFormData.value.path_data,
+      color: routeFormData.value.color || '#3B82F6'
     }
+
+    // console.log('Saving route with payload:', payload)  // DEBUG
 
     if (routeModalMode.value === 'edit') {
       await axios.put(`/routes/${routeFormData.value.id}`, payload)
@@ -311,7 +323,7 @@ const saveRoute = async () => {
     cancelEditRoute()
 
   } catch (error) {
-    console.error('Error saving route:', error)
+    // console.error('Error saving route:', error)
     toast.error(error.response?.data?.message || 'Failed to save route')
   } finally {
     isSubmitting.value = false
@@ -324,15 +336,20 @@ const finishDrawingRoute = () => {
     return
   }
 
-  routeFormData.value.path_data = routePoints.value.map(point => ({
-    lat: point.lat,
-    lng: point.lng
-  }))
-
-  routeFormData.value.start_lat = routePoints.value[0].lat
-  routeFormData.value.start_lng = routePoints.value[0].lng
-  routeFormData.value.end_lat = routePoints.value[routePoints.value.length - 1].lat
-  routeFormData.value.end_lng = routePoints.value[routePoints.value.length - 1].lng
+  // Reset form data to fresh state
+  routeFormData.value = {
+    id: null,
+    start_lat: routePoints.value[0].lat,
+    start_lng: routePoints.value[0].lng,
+    end_lat: routePoints.value[routePoints.value.length - 1].lat,
+    end_lng: routePoints.value[routePoints.value.length - 1].lng,
+    estimated_time: '',
+    path_data: routePoints.value.map(point => ({
+      lat: point.lat,
+      lng: point.lng
+    })),
+    color: '#3B82F6'
+  }
 
   routeModalMode.value = 'add'
   showRouteModal.value = true
@@ -340,7 +357,9 @@ const finishDrawingRoute = () => {
 
 const cancelEditRoute = () => {
   if (selectedRoute.value) {
-    selectedRoute.value.polyline.setStyle({ color: '#3B82F6', weight: 4 })
+    // Restore original color from database
+    const originalColor = selectedRoute.value.data.color || '#3B82F6'
+    selectedRoute.value.polyline.setStyle({ color: originalColor, weight: 4 })
     selectedRoute.value.polyline.off('click')
   }
 
@@ -359,7 +378,8 @@ const cancelEditRoute = () => {
     end_lat: '',
     end_lng: '',
     estimated_time: '',
-    path_data: []
+    path_data: [],
+    color: '#3B82F6'
   }
   routeModalMode.value = 'add'
 
@@ -369,6 +389,13 @@ const cancelEditRoute = () => {
 // ========== POLYGON METHODS ==========
 const savePolygon = async () => {
   if (isSubmitting.value) return
+
+  // If in edit mode but modal not shown, show modal first
+  if (editPolygonMode.value && !showPolygonModal.value) {
+    showPolygonModal.value = true
+    toast.info('Adjust polygon details in the modal and click save to confirm.')
+    return
+  }
 
   if (!polygonFormData.value.name || polygonFormData.value.coordinates.length < 3) {
     toast.error('Please fill in all required fields and ensure polygon has at least 3 points')
@@ -400,7 +427,7 @@ const savePolygon = async () => {
     closePolygonModal()
 
   } catch (error) {
-    console.error('Error saving polygon:', error)
+    // console.error('Error saving polygon:', error)
     toast.error(error.response?.data?.message || 'Failed to save polygon')
   } finally {
     isSubmitting.value = false
@@ -597,7 +624,7 @@ const confirmDelete = async () => {
     closeDeleteModal()
 
   } catch (error) {
-    console.error('Error deleting:', error)
+    // console.error('Error deleting:', error)
     toast.error(error.response?.data?.message || `Failed to delete ${deleteModalData.value.type}`)
   } finally {
     isSubmitting.value = false
@@ -626,7 +653,8 @@ const getUserLocation = () => {
         updateUserMarker()
       },
       (error) => {
-        console.error('Geolocation error:', error)
+        // console.error('Geolocation error:', error)
+        // Silently ignore geolocation errors
       }
     )
   }
@@ -652,7 +680,8 @@ const updateUserMarker = () => {
       userMarker.value.bindPopup('You', { offset: [0, -12], closeButton: false })
     }
   } catch (error) {
-    console.error('Error updating user marker:', error)
+    // console.error('Error updating user marker:', error)
+    // Silently ignore user marker errors
     userMarker.value = null
   }
 }
@@ -723,12 +752,28 @@ window.editRoute = (routeId) => {
     end_lat: routeObj.data.end_lat,
     end_lng: routeObj.data.end_lng,
     estimated_time: routeObj.data.estimated_time,
-    path_data: pathData
+    path_data: pathData,
+    color: routeObj.data.color || '#3B82F6'
   }
 
-  // Enable editing would need to be implemented in the route composable
-  toast.info('Route editing - implement edit functionality similar to polygon editing')
+  // Enable editing mode with draggable markers
+  // Do NOT show modal - only show when user clicks check button
+  enableRouteEditing(routeId, (updatedPathData) => {
+    // Update form data as user drags points
+    routeFormData.value.path_data = updatedPathData
+
+    // Update start and end points
+    if (updatedPathData.length > 0) {
+      routeFormData.value.start_lat = updatedPathData[0].lat
+      routeFormData.value.start_lng = updatedPathData[0].lng
+      routeFormData.value.end_lat = updatedPathData[updatedPathData.length - 1].lat
+      routeFormData.value.end_lng = updatedPathData[updatedPathData.length - 1].lng
+    }
+  })
+
+  toast.info('Drag route points to edit the path. Click check (✓) when done, then adjust in the modal.')
 }
+
 
 window.deleteRoute = (routeId) => {
   const route = savedRoutes.value.find(r => r.id === routeId)
@@ -777,6 +822,8 @@ window.editPolygon = (polygonId) => {
 
   polygonModalMode.value = 'edit'
 
+  // Enable editing mode with draggable markers
+  // Do NOT show modal - only show when user clicks check button
   enablePolygonEditing(polygonId, (updatedCoordinates) => {
     polygonFormData.value.coordinates = updatedCoordinates.map(latlng => ({
       lat: latlng.lat,
@@ -784,7 +831,7 @@ window.editPolygon = (polygonId) => {
     }))
   })
 
-  showPolygonModal.value = true
+  toast.info('Drag polygon points to edit. Click check (✓) when done, then adjust in the modal.')
 }
 
 window.deletePolygon = (polygonId) => {
@@ -810,6 +857,8 @@ window.deletePolygon = (polygonId) => {
 }
 
 // ========== LIFECYCLE & WATCHERS ==========
+let echoListener = null
+
 onMounted(() => {
   map.value = L.map('map').setView([8.16953, 126.00306], 16)
 
@@ -837,10 +886,39 @@ onMounted(() => {
     map.value.on('click', handleMapClick)
     map.value.on('dblclick', handleMapDblClick)
   }
-})
 
-// Listen for keyboard/finish events dispatched by the polygon composable
-onMounted(() => {
+  // Real-time updates with Echo
+  if (!window.Echo) {
+    // console.warn('Laravel Echo is not available. Real-time updates will be disabled.')
+  } else {
+    echoListener = window.Echo.channel('main-channel')
+      .listen('.MainEvent', (e) => {
+        // COMPLETE REFRESH ON ANY EVENT
+        // Always fetch all three to ensure consistency
+        
+        if (e.type === 'route') {
+          fetchRoutes()
+        } else if (e.type === 'facility') {
+          fetchMarkers()
+          fetchPolygons()
+        } else if (e.type === 'marker') {
+          fetchMarkers()
+        } else if (e.type === 'polygon') {
+          fetchPolygons()
+        }
+
+        // Always ensure all three are fresh for consistency
+        setTimeout(() => {
+          if (e.type !== 'route') fetchRoutes()
+          if (e.type !== 'marker') fetchMarkers()
+          if (e.type !== 'polygon') fetchPolygons()
+        }, 100)
+      })
+
+    // console.log('Real-time event listener registered')
+  }
+
+  // Listen for keyboard/finish events from polygon composable
   const _onPolygonFinished = (e) => {
     const data = e.detail
     if (!data || !data.coordinates) return
@@ -866,10 +944,10 @@ onMounted(() => {
   window.addEventListener('polygon:finished', _onPolygonFinished)
   window.addEventListener('polygon:cancelled', _onPolygonCancelled)
 
-  onUnmounted(() => {
+  return () => {
     window.removeEventListener('polygon:finished', _onPolygonFinished)
     window.removeEventListener('polygon:cancelled', _onPolygonCancelled)
-  })
+  }
 })
 
 watch(searchQuery, (query) => {
@@ -885,33 +963,6 @@ watch(searchQuery, (query) => {
     filteredLocations.value = []
   }
   isSearching.value = false
-})
-
-// Real-time updates
-let routeRefreshTimeout = null
-onMounted(() => {
-  if (!window.Echo) {
-    console.warn('Laravel Echo is not available. Real-time updates will be disabled.')
-    return
-  }
-
-  window.Echo.channel('main-channel')
-    .listen('.MainEvent', (e) => {
-      console.log('Received MainEvent:', e)
-      if (e.type === 'marker') {
-        fetchMarkers()
-      } else if (e.type === 'route') {
-        if (routeRefreshTimeout) {
-          clearTimeout(routeRefreshTimeout)
-        }
-        routeRefreshTimeout = setTimeout(() => {
-          fetchRoutes()
-          routeRefreshTimeout = null
-        }, 300)
-      } else if (e.type === 'polygon') {
-        fetchPolygons()
-      }
-    })
 })
 </script>
 
@@ -1190,6 +1241,36 @@ onMounted(() => {
             <div>
               <label class="block text-sm font-medium text-gray-900 mb-2">Estimated Time</label>
               <TextInput v-model="routeFormData.estimated_time" type="text" placeholder="e.g., 5 minutes" class="w-full" />
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-900 mb-2">Route Color</label>
+                <div class="flex items-center gap-3">
+                  <input
+                    v-model="routeFormData.color"
+                    type="color"
+                    class="h-10 w-20 rounded border border-gray-300 cursor-pointer"
+                  />
+                  <input
+                    v-model="routeFormData.color"
+                    type="text"
+                    placeholder="#3B82F6"
+                    class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <p class="text-xs text-gray-500 mt-1">Choose a color for this route path</p>
+              </div>
+
+              <div class="flex items-end">
+                <div class="w-full">
+                  <label class="block text-sm font-medium text-gray-900 mb-2">Preview</label>
+                  <div
+                    class="h-10 w-full rounded border border-gray-300"
+                    :style="{ backgroundColor: routeFormData.color }"
+                  ></div>
+                </div>
+              </div>
             </div>
 
             <div class="text-sm text-gray-600">

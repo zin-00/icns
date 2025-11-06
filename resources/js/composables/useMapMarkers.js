@@ -50,7 +50,8 @@ export function useMapMarkers(map, isAdmin) {
         })
       }
     } catch (error) {
-      console.error('Error fetching markers:', error)
+      // console.error('Error fetching markers:', error)
+      // Silently ignore fetch errors for markers
       toast.error('Failed to load markers')
     }
   }

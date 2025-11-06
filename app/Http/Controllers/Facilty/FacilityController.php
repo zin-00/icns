@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Facilty;
 
 use App\Http\Controllers\Controller;
 use App\Models\Facility;
+use App\Events\MainEvent;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -21,7 +22,10 @@ class FacilityController extends Controller
             'status' => 'nullable|in:active,inactive',
         ]);
 
-        Facility::create($data);
+        $facility = Facility::create($data);
+
+        // Broadcast facility creation event
+        broadcast(new MainEvent('facility', 'create', $facility))->toOthers();
 
         return redirect()->back()->with('success', 'Facility created successfully.');
     }
@@ -40,6 +44,9 @@ class FacilityController extends Controller
 
         $facility->update($data);
 
+        // Broadcast facility update event
+        broadcast(new MainEvent('facility', 'update', $facility))->toOthers();
+
        return response()->json([
             'message' => 'Facility updated successfully.',
             'facility' => $facility
@@ -47,7 +54,11 @@ class FacilityController extends Controller
     }
     public function destroy($id){
         $facility = Facility::findOrFail($id);
+        $facilityData = $facility->toArray(); // Store data before deletion
         $facility->delete();
+
+        // Broadcast facility deletion event with stored data
+        broadcast(new MainEvent('facility', 'delete', $facilityData))->toOthers();
 
        return response()->json([
             'message' => 'Facility deleted successfully.'

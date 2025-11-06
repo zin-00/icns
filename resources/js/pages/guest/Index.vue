@@ -4,6 +4,7 @@ import { Head } from '@inertiajs/vue3';
 import GuestMapV1 from '../../Components/map/GuestMapV1.vue';
 import GuestMapV2 from '../../Components/map/GuestMapV2.vue';
 
+
 const props = defineProps({
   facilities: {
     type: Array,
@@ -18,7 +19,6 @@ const props = defineProps({
     default: () => []
   }
 });
-
 
 </script>
 

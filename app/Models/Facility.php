@@ -20,4 +20,9 @@ class Facility extends Model
     {
         return $this->belongsTo(Marker::class);
     }
+
+    public function photos()
+    {
+        return $this->hasMany(FacilityPhoto::class);
+    }
 }

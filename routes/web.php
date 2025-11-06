@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Facilty\FacilityController;
+use App\Http\Controllers\FacilityPhotoController;
 use App\Http\Controllers\FacilityPolygonController;
 use App\Http\Controllers\Feedback\FeedbackController;
 use App\Http\Controllers\Guest\GuestController;
@@ -24,7 +25,11 @@ use Inertia\Inertia;
 
 
 Route::get('/', function () {
-    $facilities = Facility::with(['marker.notes.guest'])->get();
+    $facilities = Facility::with([
+        'marker.notes.guest',
+        'marker.feedbacks.guest',
+        'photos.guest',
+    ])->get();
 
     // Get all notes (frontend will filter by guest_id)
     $notes = Note::with(['marker', 'guest'])
@@ -61,6 +66,8 @@ Route::get('/routes/export/geojson-pub', [RouteController::class, 'exportGeoJSON
 
 // Facility Polygon Routes (Public - for viewing)
 Route::get('/facilities/polygons', [FacilityPolygonController::class, 'index']);
+Route::get('/facilities/{facility}/photos', [FacilityPhotoController::class, 'index']);
+Route::post('/facilities/{facility}/photos', [FacilityPhotoController::class, 'store']);
 
 Route::post('/guests', [GuestController::class, 'store'])->name('guest');
 
