@@ -8,6 +8,7 @@ use App\Models\Feedback;
 use App\Models\Marker;
 use App\Models\Note;
 use App\Models\Report;
+use App\Models\Route;
 use App\Models\SearchLog;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -15,7 +16,17 @@ use Inertia\Inertia;
 class RenderController extends Controller
 {
     public function login(){
-        return Inertia::render('auth/LoginPage');
+        // Get statistics for the login page
+        $stats = [
+            'facilities' => Facility::count(),
+            'markers' => Marker::count(),
+            'routes' => Route::count(),
+            'polygons' => \App\Models\FacilityPolygon::count(),
+        ];
+
+        return Inertia::render('auth/LoginPage', [
+            'stats' => $stats
+        ]);
     }
     public function register(){
         return Inertia::render('auth/Register');

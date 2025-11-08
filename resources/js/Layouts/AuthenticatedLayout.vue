@@ -89,22 +89,22 @@ const navItems = [
         ]"
       >
         <!-- Logo -->
-        <div class="hidden lg:flex items-center gap-2 px-6 py-5 border-b border-gray-200">
-          <BxSolidNavigation class="h-10 w-10 text-black"/>
+        <div class="hidden lg:flex items-center gap-2 px-6 py-5 border-b border-gray-200 bg-white">
+          <BxSolidNavigation class="h-10 w-10 text-gray-700"/>
           <span class="text-xl font-semibold text-gray-800">CAMPUS NAVIGATOR</span>
         </div>
 
         <!-- Navigation -->
-        <nav class="flex-1 px-4 py-6 space-y-1 overflow-y-auto mt-16 lg:mt-0">
+        <nav class="flex-1 px-4 py-6 space-y-2 overflow-y-auto mt-16 lg:mt-0 bg-white">
           <Link
             v-for="item in navItems"
             :key="item.route"
             :href="route(item.route)"
             :class="[
-              'flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors',
+              'flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200',
               route().current(item.route)
-                ? 'bg-gray-900 text-white'
-                : 'text-gray-700 hover:bg-gray-100'
+                ? 'bg-gray-100 text-gray-900'
+                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
             ]"
             @click="mobileMenuOpen = false"
           >
@@ -116,8 +116,8 @@ const navItems = [
         <!-- User Section -->
         <div class="absolute bottom-0 left-0 right-0 border-t border-gray-200 bg-white">
           <div class="px-4 py-4">
-            <div class="flex items-center gap-3 mb-3">
-              <BsPersonCircle class="h-8 w-8 text-gray-600" />
+            <div class="flex items-center gap-3 mb-3 px-2 py-2 rounded-lg bg-gray-50">
+              <BsPersonCircle class="h-8 w-8 text-gray-500" />
               <div class="flex-1 min-w-0">
                 <p class="text-sm font-medium text-gray-900 truncate">
                   {{ $page.props.auth.user.name }}
@@ -130,7 +130,7 @@ const navItems = [
             <div class="space-y-1">
               <Link
                 :href="route('profile.index')"
-                class="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md"
+                class="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-lg transition-all duration-200"
                 @click="mobileMenuOpen = false"
               >
                 <BsPersonCircle class="h-4 w-4" />
@@ -138,7 +138,7 @@ const navItems = [
               </Link>
               <button
                 @click="logout"
-                class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md"
+                class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-lg transition-all duration-200"
               >
                 <BsBoxArrowRight class="h-4 w-4" />
                 Log Out

@@ -1156,10 +1156,8 @@ const displayNotesOnMap = () => {
     return
   }
 
-  // CRITICAL: Don't manipulate markers during zoom animations
-  // This prevents the _latLngToNewLayerPoint error
   if (isZoomInProgress || map.value._animatingZoom || map.value._isZooming) {
-    console.warn('displayNotesOnMap: ⚠️ BLOCKED - Zoom in progress!')
+    console.warn('displayNotesOnMap: BLOCKED - Zoom in progress!')
     // Don't retry automatically - let zoomend handler trigger it
     return
   }
@@ -1793,9 +1791,12 @@ const initializeMap = async () => {
       if (privateRoutes.value && privateRoutes.value.features) {
         privateRoutes.value.features.forEach((feature) => {
           if (feature.geometry && feature.geometry.type === 'LineString') {
+            // Get color from database or use default
+            const routeColor = feature.properties?.color || '#FF6B6B'
+
             const layer = L.geoJSON(feature, {
               style: {
-                color: '#FF6B6B',
+                color: routeColor,
                 weight: 6,
                 opacity: 0.9,
                 dashArray: '10, 5',
@@ -1806,7 +1807,7 @@ const initializeMap = async () => {
 
             layer.on('click', (e) => {
               L.DomEvent.stopPropagation(e)
-              createRoute(e.latlng)
+              createRoute(e.latlng, null, feature.properties?.color)
             })
 
             geoJsonLayers.value.push(layer)
@@ -1826,12 +1827,12 @@ const initializeMap = async () => {
         // Flag that zoom is in progress
         isZoomInProgress = true
         map.value._isZooming = true
-        console.log('🔒 Zoom started - blocking note operations')
+        // console.log('Zoom started - blocking note operations')
       })
 
       map.value.on('zoomend', () => {
         // Clear zoom flag after animation completes
-        console.log('🔓 Zoom ended - allowing note operations')
+        // console.log('Zoom ended - allowing note operations')
 
         // Small delay to ensure animation is fully complete
         setTimeout(() => {
@@ -1841,7 +1842,7 @@ const initializeMap = async () => {
           // If notes were pending display during zoom, show them now
           if (pendingNoteDisplay) {
             pendingNoteDisplay = false
-            console.log('📝 Displaying pending notes after zoom')
+            // console.log('Displaying pending notes after zoom')
             debouncedDisplayNotes()
           }
         }, 100)
@@ -1986,8 +1987,6 @@ const previousPhoto = () => {
 const hasGuestInfo = loadGuestInfoFromSession()
 
 onMounted(() => {
-//   console.log('Notes:', props.notes)
-//   console.log('Polygons:', props.polygons)
 
   if (hasGuestInfo) {
     initializeMap()
