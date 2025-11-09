@@ -76,7 +76,7 @@ Route::post('/auth/check-email', [AuthController::class, 'isEmailExist'])->name(
 Route::post('/login', [AuthController::class, 'login'])->name('login.post');
 Route::post('/auth/login', [AuthController::class, 'login'])->name('auth.login');
 
-Route::get('/register', [RenderController::class, 'register'])->name('register.get');
+Route::get('/register', [RenderController::class, 'register'])->name('register')->middleware('admin.register');
 Route::post('/register', [AuthController::class, 'register'])->name('register.post');
 
 Route::middleware('auth')->group(function () {

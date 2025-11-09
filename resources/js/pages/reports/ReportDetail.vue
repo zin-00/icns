@@ -54,100 +54,53 @@ const exportPDF = () => {
     }, 100);
 };
 
-// Export to DOCX
+// Export to DOCX using CDN-loaded library
 const exportDOCX = async () => {
     isExporting.value = true;
 
     try {
         const html = generateDocumentHTML();
-        
-        // Create proper Word-compatible HTML with MIME type
-        const fullHTML = `
-            <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-            <head>
-                <meta charset='utf-8'>
-                <title>${props.report.title}</title>
-                <!--[if gte mso 9]>
-                <xml>
-                    <w:WordDocument>
-                        <w:View>Print</w:View>
-                        <w:Zoom>90</w:Zoom>
-                        <w:DoNotOptimizeForBrowser/>
-                    </w:WordDocument>
-                </xml>
-                <![endif]-->
-                <style>
-                    body { 
-                        font-family: Calibri, Arial, sans-serif; 
-                        font-size: 11pt;
-                        line-height: 1.6; 
-                        color: #000000; 
-                        padding: 40px;
-                        width: 21cm;
-                        margin: 0 auto;
-                    }
-                    h1 { 
-                        color: #1f2937; 
-                        font-size: 24pt;
-                        border-bottom: 3px solid #1f2937; 
-                        padding-bottom: 10px; 
-                        margin-bottom: 20px;
-                        font-weight: bold;
-                    }
-                    h2 { 
-                        color: #1f2937; 
-                        font-size: 16pt;
-                        margin-top: 30px; 
-                        margin-bottom: 15px; 
-                        border-left: 4px solid #1f2937; 
-                        padding-left: 10px;
-                        font-weight: bold;
-                    }
-                    .meta { 
-                        background-color: #f3f4f6; 
-                        padding: 15px; 
-                        border-radius: 5px; 
-                        margin-bottom: 30px; 
-                        border: 1px solid #d1d5db;
-                    }
-                    .meta p { 
-                        margin: 8px 0; 
-                        font-size: 10pt;
-                    }
-                    table { 
-                        width: 100%; 
-                        border-collapse: collapse; 
-                        margin: 20px 0 30px 0;
-                        border: 1px solid #000000;
-                    }
-                    th { 
-                        background-color: #1f2937; 
-                        color: #ffffff;
-                        padding: 12px; 
-                        text-align: left; 
-                        font-weight: bold; 
-                        border: 1px solid #000000;
-                        font-size: 11pt;
-                    }
-                    td { 
-                        padding: 10px 12px; 
-                        border: 1px solid #000000;
-                        font-size: 10pt;
-                    }
-                    tr:nth-child(even) { 
-                        background-color: #f9fafb; 
-                    }
-                    .page-break {
-                        page-break-before: always;
-                    }
-                </style>
-            </head>
-            ${html}
-            </html>
-        `;
-        
-        const blob = new Blob(['\ufeff', fullHTML], {
-            type: 'application/msword'
+
+        // Load library from CDN if not already loaded
+        if (!window.htmlDocx) {
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/html-docx-js@0.3.1/dist/html-docx.min.js';
+
+            await new Promise((resolve, reject) => {
+                script.onload = resolve;
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
+        }
+
+        // Convert HTML to DOCX
+        const converted = window.htmlDocx.asBlob(html);
+
+        const link = document.createElement('a');
+        const url = window.URL.createObjectURL(converted);
+        link.href = url;
+        link.download = `${props.report.title.replace(/\s+/g, '-')}-${Date.now()}.docx`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+    } catch (error) {
+        console.error('Export error:', error);
+        alert(`Failed to export document: ${error.message}\n\nTrying alternative method...`);
+
+        // Fallback: export as HTML that can be opened in Word
+        exportAsHTML();
+    } finally {
+        isExporting.value = false;
+    }
+};
+
+// Fallback export as HTML (can be opened in Word)
+const exportAsHTML = () => {
+    try {
+        const html = generateDocumentHTML();
+        const blob = new Blob([html], {
+            type: 'application/msword;charset=utf-8'
         });
 
         const link = document.createElement('a');
@@ -159,9 +112,8 @@ const exportDOCX = async () => {
         document.body.removeChild(link);
         window.URL.revokeObjectURL(url);
     } catch (error) {
-        console.error('Export error:', error);
-    } finally {
-        isExporting.value = false;
+        console.error('Fallback export error:', error);
+        alert('Failed to export document. Please use the Print PDF option instead.');
     }
 };
 
@@ -169,298 +121,378 @@ const exportDOCX = async () => {
 const generateDocumentHTML = () => {
     const data = props.report.data;
 
-    let html = `<body>
+    let html = `
+    <!DOCTYPE html>
+    <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+    <head>
+        <meta charset="UTF-8">
+        <title>${props.report.title}</title>
+        <style>
+            body {
+                font-family: Calibri, Arial, sans-serif;
+                line-height: 1.6;
+                color: #333;
+                padding: 40px;
+                max-width: 1200px;
+                margin: 0 auto;
+            }
+            h1 {
+                color: #1f2937;
+                border-bottom: 3px solid #1f2937;
+                padding-bottom: 10px;
+                margin-bottom: 20px;
+                font-size: 28px;
+            }
+            h2 {
+                color: #1f2937;
+                margin-top: 30px;
+                margin-bottom: 15px;
+                border-left: 4px solid #1f2937;
+                padding-left: 10px;
+                font-size: 20px;
+            }
+            .meta {
+                background-color: #f3f4f6;
+                padding: 15px;
+                border-radius: 5px;
+                margin-bottom: 30px;
+                font-size: 14px;
+            }
+            .meta p {
+                margin: 8px 0;
+            }
+            .meta strong {
+                color: #1f2937;
+            }
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-bottom: 30px;
+                margin-top: 15px;
+            }
+            th {
+                background-color: #f3f4f6;
+                padding: 12px;
+                text-align: left;
+                font-weight: bold;
+                border-bottom: 2px solid #d1d5db;
+                font-size: 13px;
+            }
+            td {
+                padding: 10px 12px;
+                border-bottom: 1px solid #e5e7eb;
+                font-size: 13px;
+            }
+            tr:nth-child(even) {
+                background-color: #f9fafb;
+            }
+            .stat-container {
+                margin-bottom: 30px;
+                overflow: hidden;
+            }
+            .stat-box {
+                display: inline-block;
+                background-color: #f3f4f6;
+                padding: 20px;
+                margin: 10px 20px 10px 0;
+                border-radius: 5px;
+                text-align: center;
+                min-width: 180px;
+                vertical-align: top;
+            }
+            .stat-value {
+                font-size: 32px;
+                font-weight: bold;
+                color: #1f2937;
+                margin-bottom: 5px;
+            }
+            .stat-label {
+                font-size: 12px;
+                color: #6b7280;
+                text-transform: uppercase;
+                margin-top: 5px;
+            }
+            .section-divider {
+                margin: 40px 0;
+                border-top: 2px solid #e5e7eb;
+            }
+        </style>
+    </head>
+    <body>
         <h1>${props.report.title}</h1>
         <div class="meta">
+            <p><strong>Description:</strong> ${props.report.description}</p>
+            <p><strong>Type:</strong> ${props.report.type.toUpperCase()}</p>
+            ${props.report.period_from ? `<p><strong>Period:</strong> ${formatDate(props.report.period_from)} to ${formatDate(props.report.period_to)}</p>` : ''}
             <p><strong>Generated:</strong> ${formatDate(props.report.created_at)}</p>
-            <p><strong>Report Type:</strong> ${props.report.report_type}</p>
-            ${props.report.date_range_start ? `<p><strong>Date Range:</strong> ${formatDate(props.report.date_range_start)} - ${formatDate(props.report.date_range_end)}</p>` : ''}
         </div>
     `;
 
-    if (props.report.report_type === 'Usage Report') {
-        html += generateUsageReport();
-    } else if (props.report.report_type === 'Feedback Report') {
-        html += generateFeedbackReport();
-    } else if (props.report.report_type === 'Facility Report') {
-        html += generateFacilityReport();
-    } else if (props.report.report_type === 'Search Report') {
-        html += generateSearchReport();
-    }
+    if (props.report.type === 'usage') html += generateUsageReport(data);
+    else if (props.report.type === 'feedback') html += generateFeedbackReport(data);
+    else if (props.report.type === 'facility') html += generateFacilityReport(data);
+    else if (props.report.type === 'search') html += generateSearchReport(data);
 
-    html += '</body>';
+    html += '</body></html>';
     return html;
 };
 
-const generateUsageReport = () => {
-    const data = props.report.data;
+const generateUsageReport = (data) => {
+    const avgSearches = data.unique_searchers > 0
+        ? (data.total_searches / data.unique_searchers).toFixed(1)
+        : 0;
+    const topQueryCount = data.top_searches?.[0]?.count || 0;
+
     return `
+    <div class="section-divider"></div>
     <h2>Usage Statistics</h2>
-    <table>
-        <thead>
-            <tr>
-                <th>Metric</th>
-                <th>Value</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr>
-                <td>Total Searches</td>
-                <td>${data.total_searches || 0}</td>
-            </tr>
-            <tr>
-                <td>Unique Searchers</td>
-                <td>${data.unique_searchers || 0}</td>
-            </tr>
-            <tr>
-                <td>Average Searches per User</td>
-                <td>${data.unique_searchers > 0 ? (data.total_searches / data.unique_searchers).toFixed(2) : 0}</td>
-            </tr>
-        </tbody>
-    </table>
+    <div class="stat-container">
+        <div class="stat-box">
+            <div class="stat-value">${data.total_searches?.toLocaleString() || 0}</div>
+            <div class="stat-label">Total Searches</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-value">${data.unique_searchers?.toLocaleString() || 0}</div>
+            <div class="stat-label">Unique Searchers</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-value">${avgSearches}</div>
+            <div class="stat-label">Avg. Searches/User</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-value">${topQueryCount.toLocaleString()}</div>
+            <div class="stat-label">Top Query Count</div>
+        </div>
+    </div>
 
     <h2>Top Search Queries</h2>
+    <p style="color: #6b7280; margin-bottom: 15px;">Most frequently searched terms</p>
     <table>
         <thead>
             <tr>
-                <th>Rank</th>
-                <th>Query</th>
-                <th>Count</th>
-                <th>Percentage</th>
+                <th style="width: 10%;">Rank</th>
+                <th style="width: 50%;">Query</th>
+                <th style="width: 20%;">Count</th>
+                <th style="width: 20%;">Percentage</th>
             </tr>
         </thead>
         <tbody>
-            ${data.top_searches?.map((s, index) => `
+            ${data.top_searches?.map((s, i) => {
+                const percentage = data.total_searches > 0
+                    ? Math.round((s.count / data.total_searches) * 100)
+                    : 0;
+                return `
                 <tr>
-                    <td>${index + 1}</td>
+                    <td><strong>${i + 1}</strong></td>
                     <td>${s.query}</td>
-                    <td>${s.count}</td>
-                    <td>${((s.count / data.total_searches) * 100).toFixed(1)}%</td>
-                </tr>
-            `).join('') || '<tr><td colspan="4">No data available</td></tr>'}
+                    <td>${s.count.toLocaleString()}</td>
+                    <td>${percentage}%</td>
+                </tr>`;
+            }).join('') || '<tr><td colspan="4" style="text-align: center; color: #6b7280;">No data available</td></tr>'}
         </tbody>
     </table>
 
     ${data.guest_roles?.length ? `
-        <h2>User Roles Distribution</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>Role</th>
-                    <th>Count</th>
-                    <th>Percentage</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${data.guest_roles.map(role => `
-                    <tr>
-                        <td>${role.role}</td>
-                        <td>${role.count}</td>
-                        <td>${((role.count / data.total_searches) * 100).toFixed(1)}%</td>
-                    </tr>
-                `).join('')}
-            </tbody>
-        </table>
-    ` : ''}
-    `;
-};
-
-const generateFeedbackReport = () => {
-    const data = props.report.data;
-    return `
-    <h2>Feedback Statistics</h2>
+    <h2>User Roles Distribution</h2>
+    <p style="color: #6b7280; margin-bottom: 15px;">Breakdown of searches by user role</p>
     <table>
         <thead>
             <tr>
-                <th>Metric</th>
-                <th>Value</th>
+                <th style="width: 60%;">Role</th>
+                <th style="width: 20%;">Count</th>
+                <th style="width: 20%;">Percentage</th>
             </tr>
         </thead>
         <tbody>
-            <tr>
-                <td>Total Feedback</td>
-                <td>${data.total_feedback || 0}</td>
-            </tr>
+            ${data.guest_roles.map(role => {
+                const percentage = data.total_searches > 0
+                    ? Math.round((role.count / data.total_searches) * 100)
+                    : 0;
+                return `
+                <tr>
+                    <td style="text-transform: capitalize;">${role.role}</td>
+                    <td>${role.count.toLocaleString()}</td>
+                    <td>${percentage}%</td>
+                </tr>`;
+            }).join('')}
         </tbody>
-    </table>
+    </table>` : ''}
+`;
+};
+
+const generateFeedbackReport = (data) => `
+    <div class="section-divider"></div>
+    <h2>Feedback Statistics</h2>
+    <div class="stat-container">
+        <div class="stat-box">
+            <div class="stat-value">${data.total_feedback?.toLocaleString() || 0}</div>
+            <div class="stat-label">Total Feedback</div>
+        </div>
+    </div>
 
     <h2>Feedback by Location</h2>
     <table>
         <thead>
             <tr>
-                <th>Location</th>
-                <th>Count</th>
-                <th>Percentage</th>
+                <th style="width: 60%;">Location</th>
+                <th style="width: 20%;">Count</th>
+                <th style="width: 20%;">Percentage</th>
             </tr>
         </thead>
         <tbody>
-            ${data.feedback_by_location?.map(l => `
+            ${data.feedback_by_location?.map(l => {
+                const percentage = data.total_feedback > 0
+                    ? Math.round((l.count / data.total_feedback) * 100)
+                    : 0;
+                return `
                 <tr>
                     <td>${l.location}</td>
-                    <td>${l.count}</td>
-                    <td>${((l.count / data.total_feedback) * 100).toFixed(1)}%</td>
-                </tr>
-            `).join('') || '<tr><td colspan="3">No data available</td></tr>'}
+                    <td>${l.count.toLocaleString()}</td>
+                    <td>${percentage}%</td>
+                </tr>`;
+            }).join('') || '<tr><td colspan="3" style="text-align: center; color: #6b7280;">No data available</td></tr>'}
         </tbody>
     </table>
 
     ${data.feedback_by_role?.length ? `
-        <h2>Feedback by Role</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>Role</th>
-                    <th>Count</th>
-                    <th>Percentage</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${data.feedback_by_role.map(role => `
-                    <tr>
-                        <td>${role.role}</td>
-                        <td>${role.count}</td>
-                        <td>${((role.count / data.total_feedback) * 100).toFixed(1)}%</td>
-                    </tr>
-                `).join('')}
-            </tbody>
-        </table>
-    ` : ''}
-    `;
-};
-
-const generateFacilityReport = () => {
-    const data = props.report.data;
-    return `
-    <h2>Facility Statistics</h2>
+    <h2>Feedback by Role</h2>
     <table>
         <thead>
             <tr>
-                <th>Metric</th>
-                <th>Value</th>
+                <th style="width: 60%;">Role</th>
+                <th style="width: 20%;">Count</th>
+                <th style="width: 20%;">Percentage</th>
             </tr>
         </thead>
         <tbody>
-            <tr>
-                <td>Total Facilities</td>
-                <td>${data.total_facilities || 0}</td>
-            </tr>
+            ${data.feedback_by_role.map(r => {
+                const percentage = data.total_feedback > 0
+                    ? Math.round((r.count / data.total_feedback) * 100)
+                    : 0;
+                return `
+                <tr>
+                    <td style="text-transform: capitalize;">${r.role}</td>
+                    <td>${r.count.toLocaleString()}</td>
+                    <td>${percentage}%</td>
+                </tr>`;
+            }).join('')}
         </tbody>
-    </table>
+    </table>` : ''}
+`;
+
+const generateFacilityReport = (data) => `
+    <div class="section-divider"></div>
+    <h2>Facility Statistics</h2>
+    <div class="stat-container">
+        <div class="stat-box">
+            <div class="stat-value">${data.total_facilities?.toLocaleString() || 0}</div>
+            <div class="stat-label">Total Facilities</div>
+        </div>
+    </div>
 
     <h2>Facilities by Category</h2>
     <table>
         <thead>
             <tr>
-                <th>Category</th>
-                <th>Count</th>
-                <th>Percentage</th>
+                <th style="width: 60%;">Category</th>
+                <th style="width: 20%;">Count</th>
+                <th style="width: 20%;">Percentage</th>
             </tr>
         </thead>
         <tbody>
-            ${data.facilities_by_category?.map(c => `
+            ${data.facilities_by_category?.map(c => {
+                const percentage = data.total_facilities > 0
+                    ? Math.round((c.count / data.total_facilities) * 100)
+                    : 0;
+                return `
                 <tr>
                     <td>${c.category}</td>
-                    <td>${c.count}</td>
-                    <td>${((c.count / data.total_facilities) * 100).toFixed(1)}%</td>
-                </tr>
-            `).join('') || '<tr><td colspan="3">No data available</td></tr>'}
+                    <td>${c.count.toLocaleString()}</td>
+                    <td>${percentage}%</td>
+                </tr>`;
+            }).join('') || '<tr><td colspan="3" style="text-align: center; color: #6b7280;">No data available</td></tr>'}
         </tbody>
     </table>
 
     ${data.facilities_by_department?.length ? `
-        <h2>Facilities by Department</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>Department</th>
-                    <th>Count</th>
-                    <th>Percentage</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${data.facilities_by_department.map(dept => `
-                    <tr>
-                        <td>${dept.department}</td>
-                        <td>${dept.count}</td>
-                        <td>${((dept.count / data.total_facilities) * 100).toFixed(1)}%</td>
-                    </tr>
-                `).join('')}
-            </tbody>
-        </table>
-    ` : ''}
-    `;
-};
-
-const generateSearchReport = () => {
-    const data = props.report.data;
-    return `
-    <h2>Search Statistics</h2>
+    <h2>Facilities by Department</h2>
     <table>
         <thead>
             <tr>
-                <th>Metric</th>
-                <th>Value</th>
+                <th style="width: 60%;">Department</th>
+                <th style="width: 20%;">Count</th>
+                <th style="width: 20%;">Percentage</th>
             </tr>
         </thead>
         <tbody>
-            <tr>
-                <td>Total Searches</td>
-                <td>${data.total_searches || 0}</td>
-            </tr>
-            <tr>
-                <td>Unique Queries</td>
-                <td>${data.unique_queries || 0}</td>
-            </tr>
-            <tr>
-                <td>Average Searches per Query</td>
-                <td>${data.unique_queries > 0 ? (data.total_searches / data.unique_queries).toFixed(2) : 0}</td>
-            </tr>
+            ${data.facilities_by_department.map(d => {
+                const percentage = data.total_facilities > 0
+                    ? Math.round((d.count / data.total_facilities) * 100)
+                    : 0;
+                return `
+                <tr>
+                    <td>${d.department}</td>
+                    <td>${d.count.toLocaleString()}</td>
+                    <td>${percentage}%</td>
+                </tr>`;
+            }).join('')}
         </tbody>
-    </table>
+    </table>` : ''}
+`;
 
-    <h2>Top 10 Search Queries</h2>
+const generateSearchReport = (data) => `
+    <div class="section-divider"></div>
+    <h2>Search Statistics</h2>
+    <div class="stat-container">
+        <div class="stat-box">
+            <div class="stat-value">${data.total_searches?.toLocaleString() || 0}</div>
+            <div class="stat-label">Total Searches</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-value">${data.unique_queries?.toLocaleString() || 0}</div>
+            <div class="stat-label">Unique Queries</div>
+        </div>
+    </div>
+
+    <h2>Top 10 Searches</h2>
     <table>
         <thead>
             <tr>
-                <th>Rank</th>
-                <th>Query</th>
-                <th>Count</th>
-                <th>Percentage</th>
+                <th style="width: 10%;">Rank</th>
+                <th style="width: 70%;">Query</th>
+                <th style="width: 20%;">Count</th>
             </tr>
         </thead>
         <tbody>
-            ${data.top_10_searches?.map((s, index) => `
+            ${data.top_10_searches?.map((s, i) => `
                 <tr>
-                    <td>${index + 1}</td>
+                    <td><strong>${i + 1}</strong></td>
                     <td>${s.query}</td>
-                    <td>${s.search_count}</td>
-                    <td>${((s.search_count / data.total_searches) * 100).toFixed(1)}%</td>
+                    <td>${s.search_count.toLocaleString()}</td>
                 </tr>
-            `).join('') || '<tr><td colspan="4">No data available</td></tr>'}
+            `).join('') || '<tr><td colspan="3" style="text-align: center; color: #6b7280;">No data available</td></tr>'}
         </tbody>
     </table>
 
     ${data.bottom_10_searches?.length ? `
-        <h2>Bottom 10 Search Queries</h2>
-        <table>
-            <thead>
+    <h2>Bottom 10 Searches</h2>
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 80%;">Query</th>
+                <th style="width: 20%;">Count</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${data.bottom_10_searches.map(s => `
                 <tr>
-                    <th>Query</th>
-                    <th>Count</th>
+                    <td>${s.query}</td>
+                    <td>${s.search_count.toLocaleString()}</td>
                 </tr>
-            </thead>
-            <tbody>
-                ${data.bottom_10_searches.map(s => `
-                    <tr>
-                        <td>${s.query}</td>
-                        <td>${s.search_count}</td>
-                    </tr>
-                `).join('')}
-            </tbody>
-        </table>
-    ` : ''}
-    `;
-};
+            `).join('')}
+        </tbody>
+    </table>` : ''}
+`;
 
 // Get badge color based on type
 const getTypeBadgeColor = (type) => {
@@ -529,7 +561,7 @@ const calculatePercentage = (value, total) => {
                             class="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-gray-900 hover:bg-gray-800 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             <DocumentArrowDownIcon class="h-4 w-4" />
-                            Export DOCX
+                            {{ isExporting ? 'Exporting...' : 'Export DOCX' }}
                         </button>
                     </div>
                 </div>
