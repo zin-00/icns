@@ -53,10 +53,13 @@ const navItems = [
       <div class="lg:hidden fixed top-0 left-0 right-0 z-30 bg-green-900 border-b border-green-800">
         <div class="flex items-center justify-between px-4 py-3">
           <Link :href="route('dashboard')" class="flex items-center gap-2">
-            <div class="h-8 w-8 bg-white rounded-[100%] flex items-center justify-center p-1">
-              <img src="../../assets/logo.png" alt="Campus Navigator Logo" class="h-8 w-8 object-contain"/>
+            <div class="h-8 w-8 bg-white rounded-full flex items-center justify-center">
+              <img src="../../assets/logo.png" alt="ASSCAT Logo" class="h-8 w-8 object-contain"/>
             </div>
-            <span class="text-lg font-semibold text-white">CAMPUS NAVIGATOR</span>
+            <div class="flex flex-col">
+              <span class="text-sm font-bold text-white">ASSCAT</span>
+              <span class="text-[10px] font-medium text-green-200">Campus Navigator</span>
+            </div>
           </Link>
           <button
             @click="mobileMenuOpen = !mobileMenuOpen"
@@ -85,19 +88,24 @@ const navItems = [
       <!-- Sidebar -->
       <aside
         :class="[
-          'fixed top-0 left-0 z-40 h-screen w-64 bg-green-900 border-r border-green-800 transition-transform',
+          'fixed top-0 left-0 z-40 h-screen w-64 bg-green-900 border-r border-green-800 transition-transform flex flex-col',
           'lg:translate-x-0',
           mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
         ]"
       >
         <!-- Logo -->
-        <div class="hidden lg:flex items-center gap-2 px-6 py-5 border-b border-green-800 bg-green-900">
-            <img src="../../assets/logo.png" alt="Campus Navigator Logo" class="h-20 w-20 object-contain bg-white rounded-[100%]"/>
-          <span class="text-xl font-semibold text-white">CAMPUS NAVIGATOR</span>
+        <div class="hidden lg:flex items-center gap-2 px-6 py-5 border-b border-green-800 bg-green-900 flex-shrink-0">
+          <div class="h-20 w-20 bg-white rounded-full flex items-center justify-center p-2">
+            <img src="../../assets/logo.png" alt="ASSCAT Logo" class="h-full w-full object-contain"/>
+          </div>
+          <div class="flex flex-col">
+            <span class="text-xl font-bold text-white">ASSCAT</span>
+            <span class="text-xs font-medium text-green-200">Campus Navigator</span>
+          </div>
         </div>
 
         <!-- Navigation -->
-        <nav class="flex-1 px-4 py-6 space-y-2 overflow-y-auto mt-16 lg:mt-0 bg-green-900">
+        <nav class="flex-1 px-4 py-6 space-y-2 overflow-y-auto mt-16 lg:mt-0 bg-green-900 scrollbar-thin scrollbar-thumb-green-700 scrollbar-track-green-800 hover:scrollbar-thumb-green-600">
           <Link
             v-for="item in navItems"
             :key="item.route"
@@ -116,7 +124,7 @@ const navItems = [
         </nav>
 
         <!-- User Section -->
-        <div class="absolute bottom-0 left-0 right-0 border-t border-green-800 bg-green-900">
+        <div class="border-t border-green-800 bg-green-900 flex-shrink-0">
           <div class="px-4 py-4">
             <div class="flex items-center gap-3 mb-3 px-2 py-2 rounded-lg bg-green-800">
               <BsPersonCircle class="h-8 w-8 text-white" />
@@ -176,3 +184,31 @@ const navItems = [
     <Loader :is-loading="isLoading" :message="message" />
   </div>
 </template>
+
+<style scoped>
+/* Custom minimalist scrollbar */
+nav::-webkit-scrollbar {
+  width: 5px;
+}
+
+nav::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+}
+
+nav::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  transition: background 0.2s ease;
+}
+
+nav::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Firefox scrollbar */
+nav {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) rgba(255, 255, 255, 0.05);
+}
+</style>

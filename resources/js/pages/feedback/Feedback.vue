@@ -133,11 +133,11 @@ watch([searchQuery, dateFrom, dateTo], resetPagination);
             <!-- Header -->
             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
                 <div>
-                    <h2 class="text-2xl font-bold text-gray-900">Feedback</h2>
-                    <p class="mt-1 text-sm text-gray-600">View all guest feedback and reviews</p>
+                    <h2 class="text-2xl font-bold text-green-900">Feedback</h2>
+                    <p class="mt-1 text-sm text-green-700">View all guest feedback and reviews</p>
                 </div>
                 <div class="mt-4 sm:mt-0">
-                    <span class="text-sm text-gray-700 font-medium">
+                    <span class="text-sm text-green-700 font-medium">
                         {{ filteredFeedbacks.length }} {{ filteredFeedbacks.length === 1 ? 'feedback' : 'feedbacks' }}
                     </span>
                 </div>
@@ -151,12 +151,12 @@ watch([searchQuery, dateFrom, dateTo], resetPagination);
                         v-model="searchQuery"
                         type="text"
                         placeholder="Search feedback, guests, or locations..."
-                        class="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
+                        class="w-full px-4 py-2 border border-green-300 rounded-lg text-sm focus:border-green-900 focus:outline-none focus:ring-1 focus:ring-green-900"
                     />
                     <button
                         v-if="searchQuery"
                         @click="searchQuery = ''"
-                        class="absolute right-3 top-2.5 text-gray-500 hover:text-gray-700 transition-colors"
+                        class="absolute right-3 top-2.5 text-green-600 hover:text-green-900 transition-colors"
                     >
                         <XMarkIcon class="w-4 h-4" />
                     </button>
@@ -167,13 +167,13 @@ watch([searchQuery, dateFrom, dateTo], resetPagination);
                     <input
                         type="date"
                         v-model="dateFrom"
-                        class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
+                        class="px-3 py-2 border border-green-300 rounded-lg text-sm focus:border-green-900 focus:outline-none focus:ring-1 focus:ring-green-900"
                     />
-                    <span class="text-gray-600 text-sm">to</span>
+                    <span class="text-green-700 text-sm">to</span>
                     <input
                         type="date"
                         v-model="dateTo"
-                        class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
+                        class="px-3 py-2 border border-green-300 rounded-lg text-sm focus:border-green-900 focus:outline-none focus:ring-1 focus:ring-green-900"
                     />
                 </div>
 
@@ -181,7 +181,7 @@ watch([searchQuery, dateFrom, dateTo], resetPagination);
                 <button
                     v-if="hasActiveFilters"
                     @click="clearFilters"
-                    class="px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors"
+                    class="px-4 py-2 bg-green-900 text-white rounded-lg text-sm font-medium hover:bg-green-800 transition-colors"
                 >
                     Clear Filters
                 </button>
@@ -198,35 +198,35 @@ watch([searchQuery, dateFrom, dateTo], resetPagination);
                     <!-- Guest Info -->
                     <div class="flex items-center justify-between mb-3">
                         <div class="flex items-center gap-2">
-                            <div class="w-8 h-8 rounded-full bg-gray-900 flex items-center justify-center">
+                            <div class="w-8 h-8 rounded-full bg-green-900 flex items-center justify-center">
                                 <span class="text-sm font-medium text-white">
                                     {{ feedback.guest?.name?.charAt(0).toUpperCase() || 'G' }}
                                 </span>
                             </div>
                             <div>
-                                <p class="text-sm font-medium text-gray-900">{{ feedback.guest?.name || 'Guest' }}</p>
-                                <p class="text-xs text-gray-600">{{ feedback.guest?.role || 'Visitor' }}</p>
+                                <p class="text-sm font-medium text-green-900">{{ feedback.guest?.name || 'Guest' }}</p>
+                                <p class="text-xs text-green-700">{{ feedback.guest?.role || 'Visitor' }}</p>
                             </div>
                         </div>
-                        <button class="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-gray-100 rounded">
-                            <EyeIcon class="w-4 h-4 text-gray-700" />
+                        <button class="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-green-50 rounded">
+                            <EyeIcon class="w-4 h-4 text-green-700" />
                         </button>
                     </div>
 
                     <!-- Location -->
                     <div class="mb-3">
-                        <p class="text-xs font-semibold text-gray-900 mb-1">📍 Location</p>
-                        <p class="text-sm text-gray-700">{{ feedback.marker?.label || 'Unknown Location' }}</p>
-                        <p class="text-xs text-gray-600">{{ feedback.marker?.type || 'General' }}</p>
+                        <p class="text-xs font-semibold text-green-900 mb-1">📍 Location</p>
+                        <p class="text-sm text-green-800">{{ feedback.marker?.label || 'Unknown Location' }}</p>
+                        <p class="text-xs text-green-700">{{ feedback.marker?.type || 'General' }}</p>
                     </div>
 
                     <!-- Feedback Content -->
                     <div class="mb-3">
-                        <p class="text-sm text-gray-700 line-clamp-4">{{ feedback.message }}</p>
+                        <p class="text-sm text-green-800 line-clamp-4">{{ feedback.message }}</p>
                     </div>
 
                     <!-- Date -->
-                    <div class="text-xs text-gray-600">
+                    <div class="text-xs text-green-700">
                         {{ formatDate(feedback.created_at) }}
                     </div>
                 </div>
@@ -234,11 +234,11 @@ watch([searchQuery, dateFrom, dateTo], resetPagination);
 
             <!-- Empty State -->
             <div v-else class="text-center py-12">
-                <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-4">
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-50 mb-4">
                     <span class="text-2xl">💭</span>
                 </div>
-                <h3 class="text-lg font-semibold text-gray-900 mb-2">No feedback found</h3>
-                <p class="text-sm text-gray-600">Try adjusting your filters or search query</p>
+                <h3 class="text-lg font-semibold text-green-900 mb-2">No feedback found</h3>
+                <p class="text-sm text-green-700">Try adjusting your filters or search query</p>
             </div>
 
             <!-- Infinite Scroll Trigger -->
@@ -247,7 +247,7 @@ watch([searchQuery, dateFrom, dateTo], resetPagination);
                 ref="loadMoreTrigger"
                 class="flex justify-center py-8"
             >
-                <div class="animate-spin rounded-full h-8 w-8 border-2 border-gray-300 border-t-gray-900"></div>
+                <div class="animate-spin rounded-full h-8 w-8 border-2 border-green-200 border-t-green-900"></div>
             </div>
 
             <!-- View Modal with Smooth Transition -->
@@ -264,11 +264,11 @@ watch([searchQuery, dateFrom, dateTo], resetPagination);
                             @click.stop
                         >
                             <!-- Modal Header -->
-                            <div class="flex items-center justify-between p-5 border-b border-gray-200">
-                                <h3 class="text-lg font-semibold text-gray-900">Feedback Details</h3>
+                            <div class="flex items-center justify-between p-5 border-b border-green-200">
+                                <h3 class="text-lg font-semibold text-green-900">Feedback Details</h3>
                                 <button
                                     @click="closeModal"
-                                    class="text-gray-600 hover:text-gray-900 transition-colors"
+                                    class="text-green-700 hover:text-green-900 transition-colors"
                                 >
                                     <XMarkIcon class="w-5 h-5" />
                                 </button>
@@ -278,24 +278,24 @@ watch([searchQuery, dateFrom, dateTo], resetPagination);
                             <div class="p-5 overflow-y-auto max-h-[calc(75vh-140px)] space-y-4">
                                 <!-- Guest Info -->
                                 <div>
-                                    <h4 class="text-xs font-semibold text-gray-900 mb-2 uppercase tracking-wide">Guest</h4>
-                                    <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                                        <div class="w-10 h-10 rounded-full bg-gray-900 flex items-center justify-center">
+                                    <h4 class="text-xs font-semibold text-green-900 mb-2 uppercase tracking-wide">Guest</h4>
+                                    <div class="flex items-center gap-3 p-3 bg-green-50 rounded-lg">
+                                        <div class="w-10 h-10 rounded-full bg-green-900 flex items-center justify-center">
                                             <span class="text-sm font-medium text-white">
                                                 {{ selectedFeedback?.guest?.name?.charAt(0).toUpperCase() || 'G' }}
                                             </span>
                                         </div>
                                         <div>
-                                            <p class="font-medium text-gray-900 text-sm">{{ selectedFeedback?.guest?.name || 'Guest' }}</p>
-                                            <p class="text-xs text-gray-600">{{ selectedFeedback?.guest?.role || 'Visitor' }}</p>
+                                            <p class="font-medium text-green-900 text-sm">{{ selectedFeedback?.guest?.name || 'Guest' }}</p>
+                                            <p class="text-xs text-green-700">{{ selectedFeedback?.guest?.role || 'Visitor' }}</p>
                                         </div>
                                     </div>
                                 </div>
 
                                 <!-- Location Info -->
                                 <div>
-                                    <h4 class="text-xs font-semibold text-gray-900 mb-2 uppercase tracking-wide">Location</h4>
-                                    <div class="p-3 bg-gray-50 rounded-lg">
+                                    <h4 class="text-xs font-semibold text-green-900 mb-2 uppercase tracking-wide">Location</h4>
+                                    <div class="p-3 bg-green-50 rounded-lg">
                                         <div class="flex items-start gap-2 mb-2">
                                             <span class="text-lg">📍</span>
                                             <div>
@@ -303,7 +303,7 @@ watch([searchQuery, dateFrom, dateTo], resetPagination);
                                                 <p class="text-xs text-gray-600">{{ selectedFeedback?.marker?.type || 'General' }}</p>
                                             </div>
                                         </div>
-                                        <div class="mt-2 text-xs text-gray-600 space-x-2">
+                                        <div class="mt-2 text-xs text-green-700 space-x-2">
                                             <span>Lat: {{ selectedFeedback?.marker?.latitude || 'N/A' }}</span>
                                             <span>•</span>
                                             <span>Lng: {{ selectedFeedback?.marker?.longitude || 'N/A' }}</span>
@@ -313,26 +313,26 @@ watch([searchQuery, dateFrom, dateTo], resetPagination);
 
                                 <!-- Feedback Message -->
                                 <div>
-                                    <h4 class="text-xs font-semibold text-gray-900 mb-2 uppercase tracking-wide">Message</h4>
-                                    <div class="p-3 bg-gray-50 rounded-lg">
-                                        <p class="text-sm text-gray-700 whitespace-pre-wrap">{{ selectedFeedback?.message }}</p>
+                                    <h4 class="text-xs font-semibold text-green-900 mb-2 uppercase tracking-wide">Message</h4>
+                                    <div class="p-3 bg-green-50 rounded-lg">
+                                        <p class="text-sm text-green-800 whitespace-pre-wrap">{{ selectedFeedback?.message }}</p>
                                     </div>
                                 </div>
 
                                 <!-- Timestamp -->
                                 <div>
-                                    <h4 class="text-xs font-semibold text-gray-900 mb-2 uppercase tracking-wide">Created</h4>
-                                    <div class="p-3 bg-gray-50 rounded-lg">
-                                        <p class="text-sm text-gray-700">{{ formatDate(selectedFeedback?.created_at) }}</p>
+                                    <h4 class="text-xs font-semibold text-green-900 mb-2 uppercase tracking-wide">Created</h4>
+                                    <div class="p-3 bg-green-50 rounded-lg">
+                                        <p class="text-sm text-green-800">{{ formatDate(selectedFeedback?.created_at) }}</p>
                                     </div>
                                 </div>
                             </div>
 
                             <!-- Modal Footer -->
-                            <div class="flex justify-end p-5 border-t border-gray-200">
+                            <div class="flex justify-end p-5 border-t border-green-200">
                                 <button
                                     @click="closeModal"
-                                    class="px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors"
+                                    class="px-4 py-2 bg-green-900 text-white rounded-lg text-sm font-medium hover:bg-green-800 transition-colors"
                                 >
                                     Close
                                 </button>

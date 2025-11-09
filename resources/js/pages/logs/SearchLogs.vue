@@ -344,23 +344,23 @@ const pageNumbers = computed(() => {
         <div class="py-4 max-w-7xl mx-auto sm:px-4 bg-white min-h-screen">
             <!-- Header -->
             <div class="mb-6">
-                <h2 class="text-2xl font-bold text-gray-900">Search Logs</h2>
-                <p class="mt-1 text-sm text-gray-600">Guest search activity</p>
+                <h2 class="text-2xl font-bold text-green-900">Search Logs</h2>
+                <p class="mt-1 text-sm text-green-700">Guest search activity</p>
             </div>
 
             <!-- Summaries -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
-                <div class="bg-white border border-gray-200 rounded-lg p-4">
-                    <p class="text-xs text-gray-600 uppercase tracking-wide font-semibold mb-1">Total Searches</p>
-                    <p class="text-3xl font-bold text-gray-900">{{ stats.total }}</p>
+                <div class="bg-white border border-green-200 rounded-lg p-4">
+                    <p class="text-xs text-green-700 uppercase tracking-wide font-semibold mb-1">Total Searches</p>
+                    <p class="text-3xl font-bold text-green-900">{{ stats.total }}</p>
                 </div>
-                <div class="bg-white border border-gray-200 rounded-lg p-4">
-                    <p class="text-xs text-gray-600 uppercase tracking-wide font-semibold mb-1">Unique Queries</p>
-                    <p class="text-3xl font-bold text-gray-900">{{ stats.uniqueQueries }}</p>
+                <div class="bg-white border border-green-200 rounded-lg p-4">
+                    <p class="text-xs text-green-700 uppercase tracking-wide font-semibold mb-1">Unique Queries</p>
+                    <p class="text-3xl font-bold text-green-900">{{ stats.uniqueQueries }}</p>
                 </div>
-                <div class="bg-white border border-gray-200 rounded-lg p-4">
-                    <p class="text-xs text-gray-600 uppercase tracking-wide font-semibold mb-1">Active Guests</p>
-                    <p class="text-3xl font-bold text-gray-900">{{ stats.activeGuests }}</p>
+                <div class="bg-white border border-green-200 rounded-lg p-4">
+                    <p class="text-xs text-green-700 uppercase tracking-wide font-semibold mb-1">Active Guests</p>
+                    <p class="text-3xl font-bold text-green-900">{{ stats.activeGuests }}</p>
                 </div>
             </div>
 
@@ -368,18 +368,18 @@ const pageNumbers = computed(() => {
             <div class="flex flex-col sm:flex-row gap-3 mb-6">
                 <!-- Search -->
                 <div class="relative flex-1 max-w-md">
-                    <MagnifyingGlassIcon class="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                    <MagnifyingGlassIcon class="absolute left-3 top-2.5 h-4 w-4 text-green-600" />
                     <input
                         v-model="searchQuery"
                         type="text"
                         placeholder="Search query or guest..."
-                        class="w-full pl-9 pr-8 py-2 border border-gray-300 rounded-lg text-sm focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
+                        class="w-full pl-9 pr-8 py-2 border border-green-300 rounded-lg text-sm focus:border-green-900 focus:outline-none focus:ring-1 focus:ring-green-900"
                     />
                     <button
                         v-if="searchQuery"
                         @click="searchQuery = ''"
                         type="button"
-                        class="absolute right-3 top-2.5 text-gray-500 hover:text-gray-700 transition-colors"
+                        class="absolute right-3 top-2.5 text-green-600 hover:text-green-900 transition-colors"
                     >
                         <XMarkIcon class="w-4 h-4" />
                     </button>
@@ -390,13 +390,13 @@ const pageNumbers = computed(() => {
                     <input
                         type="date"
                         v-model="dateFrom"
-                        class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
+                        class="px-3 py-2 border border-green-300 rounded-lg text-sm focus:border-green-900 focus:outline-none focus:ring-1 focus:ring-green-900"
                     />
-                    <span class="text-gray-600 text-sm">to</span>
+                    <span class="text-green-700 text-sm">to</span>
                     <input
                         type="date"
                         v-model="dateTo"
-                        class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
+                        class="px-3 py-2 border border-green-300 rounded-lg text-sm focus:border-green-900 focus:outline-none focus:ring-1 focus:ring-green-900"
                     />
                 </div>
 
@@ -406,7 +406,7 @@ const pageNumbers = computed(() => {
                     <button
                         v-if="hasActiveFilters"
                         @click="clearFilters"
-                        class="px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors"
+                        class="px-4 py-2 bg-green-900 text-white rounded-lg text-sm font-medium hover:bg-green-800 transition-colors"
                     >
                         Clear Filters
                     </button>
@@ -415,7 +415,7 @@ const pageNumbers = computed(() => {
                     <button
                         v-if="hasActiveFilters && filteredLogs.length > 0"
                         @click="exportAllAsPDF(true)"
-                        class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+                        class="px-4 py-2 bg-green-700 text-white rounded-lg text-sm font-medium hover:bg-green-600 transition-colors"
                     >
                         Export Filtered
                     </button>
@@ -424,7 +424,7 @@ const pageNumbers = computed(() => {
                     <button
                         v-if="props.searchLogs.length > 0"
                         @click="exportAllAsPDF(false)"
-                        class="px-4 py-2 bg-gray-600 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors"
+                        class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-500 transition-colors"
                     >
                         Export All
                     </button>
@@ -434,7 +434,7 @@ const pageNumbers = computed(() => {
                         @click="refreshData"
                         :disabled="loading"
                         type="button"
-                        class="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition disabled:opacity-50"
+                        class="p-2 text-green-700 hover:text-green-900 hover:bg-green-50 rounded-lg transition disabled:opacity-50"
                     >
                         <ArrowPathIcon :class="['h-4 w-4', loading ? 'animate-spin' : '']" />
                     </button>
@@ -448,60 +448,60 @@ const pageNumbers = computed(() => {
                         type="radio"
                         v-model="exportFormat"
                         value="json"
-                        class="cursor-pointer"
+                        class="cursor-pointer text-green-900 focus:ring-green-900"
                     />
-                    <span class="text-gray-700">JSON Format</span>
+                    <span class="text-green-800">JSON Format</span>
                 </label>
                 <label class="flex items-center gap-2 text-sm">
                     <input
                         type="radio"
                         v-model="exportFormat"
                         value="table"
-                        class="cursor-pointer"
+                        class="cursor-pointer text-green-900 focus:ring-green-900"
                     />
-                    <span class="text-gray-700">Table Format</span>
+                    <span class="text-green-800">Table Format</span>
                 </label>
             </div>
 
             <!-- Table -->
-            <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
+            <div class="bg-white border border-green-200 rounded-lg overflow-hidden">
                 <!-- Loading State -->
                 <div v-if="loading" class="text-center py-12">
-                    <ArrowPathIcon class="h-6 w-6 animate-spin mx-auto text-gray-400 mb-2" />
-                    <p class="text-sm text-gray-600">Loading...</p>
+                    <ArrowPathIcon class="h-6 w-6 animate-spin mx-auto text-green-600 mb-2" />
+                    <p class="text-sm text-green-700">Loading...</p>
                 </div>
 
                 <!-- Empty State -->
                 <div v-else-if="searchLogs.length === 0" class="text-center py-12">
-                    <MagnifyingGlassIcon class="h-8 w-8 mx-auto text-gray-300 mb-2" />
-                    <h3 class="text-lg font-semibold text-gray-900 mb-2">No logs found</h3>
-                    <p class="text-sm text-gray-600">Try adjusting your filters</p>
+                    <MagnifyingGlassIcon class="h-8 w-8 mx-auto text-green-300 mb-2" />
+                    <h3 class="text-lg font-semibold text-green-900 mb-2">No search logs found</h3>
+                    <p class="text-sm text-green-700">Search logs will appear here once guests start searching</p>
                 </div>
 
                 <!-- Compact Table -->
                 <div v-else class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-200 text-sm">
-                        <thead class="bg-gray-50">
+                    <table class="min-w-full divide-y divide-green-200 text-sm">
+                        <thead class="bg-green-50">
                             <tr>
-                                <th class="px-4 py-2 text-left text-xs font-semibold text-gray-900 uppercase">Guest</th>
-                                <th class="px-4 py-2 text-left text-xs font-semibold text-gray-900 uppercase">Query</th>
-                                <th class="px-4 py-2 text-left text-xs font-semibold text-gray-900 uppercase">Date</th>
-                                <th class="px-4 py-2 text-left text-xs font-semibold text-gray-900 uppercase">Action</th>
+                                <th class="px-4 py-2 text-left text-xs font-semibold text-green-900 uppercase">Guest</th>
+                                <th class="px-4 py-2 text-left text-xs font-semibold text-green-900 uppercase">Query</th>
+                                <th class="px-4 py-2 text-left text-xs font-semibold text-green-900 uppercase">Date</th>
+                                <th class="px-4 py-2 text-left text-xs font-semibold text-green-900 uppercase">Action</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-gray-200">
-                            <tr v-for="log in searchLogs" :key="log.id" class="hover:bg-gray-50 transition-colors">
-                                <td class="px-4 py-2 text-gray-900 font-medium">{{ log.guest?.name || 'Unknown' }}</td>
-                                <td class="px-4 py-2 text-gray-700">
-                                    <span class="inline-flex px-2 py-1 bg-gray-100 text-gray-900 rounded text-xs font-medium truncate">
+                        <tbody class="divide-y divide-green-100">
+                            <tr v-for="log in searchLogs" :key="log.id" class="hover:bg-green-50 transition-colors">
+                                <td class="px-4 py-2 text-green-900 font-medium">{{ log.guest?.name || 'Unknown' }}</td>
+                                <td class="px-4 py-2 text-green-800">
+                                    <span class="inline-flex px-2 py-1 bg-green-100 text-green-900 rounded text-xs font-medium truncate">
                                         {{ log.query }}
                                     </span>
                                 </td>
-                                <td class="px-4 py-2 text-gray-600 text-xs">{{ formatDate(log.search_at) }}</td>
+                                <td class="px-4 py-2 text-green-700 text-xs">{{ formatDate(log.search_at) }}</td>
                                 <td class="px-4 py-2">
                                     <button
                                         @click="openModal(log)"
-                                        class="text-blue-600 hover:text-blue-800 font-medium text-xs transition-colors"
+                                        class="text-green-600 hover:text-green-800 font-medium text-xs transition-colors"
                                     >
                                         View
                                     </button>
@@ -512,9 +512,9 @@ const pageNumbers = computed(() => {
                 </div>
 
                 <!-- Pagination -->
-                <div v-if="pagination.last_page > 1" class="px-6 py-4 border-t border-gray-200 bg-gray-50">
+                <div v-if="pagination.last_page > 1" class="px-6 py-4 border-t border-green-200 bg-green-50">
                     <div class="flex flex-col sm:flex-row items-center justify-between gap-3">
-                        <div class="text-sm text-gray-600">
+                        <div class="text-sm text-green-700">
                             Showing {{ pagination.from }} to {{ pagination.to }} of {{ pagination.total }}
                         </div>
                         <div class="flex items-center gap-1">
@@ -522,7 +522,7 @@ const pageNumbers = computed(() => {
                                 @click="handlePageChange(pagination.current_page - 1)"
                                 :disabled="pagination.current_page === 1"
                                 type="button"
-                                class="p-2 text-gray-600 hover:text-gray-900 hover:bg-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition"
+                                class="p-2 text-green-700 hover:text-green-900 hover:bg-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition"
                             >
                                 <ChevronLeftIcon class="w-4 h-4" />
                             </button>
@@ -537,8 +537,8 @@ const pageNumbers = computed(() => {
                                     :class="[
                                         'px-3 py-1 text-sm rounded-lg transition',
                                         page === pagination.current_page
-                                            ? 'bg-gray-900 text-white font-medium'
-                                            : 'text-gray-600 hover:text-gray-900 hover:bg-white',
+                                            ? 'bg-green-900 text-white font-medium'
+                                            : 'text-green-700 hover:text-green-900 hover:bg-white',
                                         typeof page !== 'number' ? 'cursor-default hover:bg-transparent' : ''
                                     ]"
                                 >
@@ -550,7 +550,7 @@ const pageNumbers = computed(() => {
                                 @click="handlePageChange(pagination.current_page + 1)"
                                 :disabled="pagination.current_page === pagination.last_page"
                                 type="button"
-                                class="p-2 text-gray-600 hover:text-gray-900 hover:bg-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition"
+                                class="p-2 text-green-700 hover:text-green-900 hover:bg-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition"
                             >
                                 <ChevronRightIcon class="w-4 h-4" />
                             </button>
@@ -566,17 +566,17 @@ const pageNumbers = computed(() => {
                 <Transition name="modal-scale">
                     <div v-if="showModal" class="bg-white rounded-lg shadow-lg w-full max-w-2xl max-h-[75vh] overflow-hidden" @click.stop>
                         <!-- Modal Header -->
-                        <div class="p-5 border-b border-gray-200 flex items-center justify-between">
-                            <h3 class="text-lg font-semibold text-gray-900">Search Log Details</h3>
-                            <button @click="closeModal" class="text-gray-600 hover:text-gray-900 transition-colors">
+                        <div class="p-5 border-b border-green-200 flex items-center justify-between">
+                            <h3 class="text-lg font-semibold text-green-900">Search Log Details</h3>
+                            <button @click="closeModal" class="text-green-700 hover:text-green-900 transition-colors">
                                 <XMarkIcon class="w-5 h-5" />
                             </button>
                         </div>
 
                         <!-- Modal Body -->
                         <div class="p-5 overflow-y-auto max-h-[calc(75vh-140px)]">
-                            <div class="bg-gray-50 rounded-lg p-4 mb-4">
-                                <pre class="text-xs text-gray-700 overflow-auto max-h-80 font-mono">{{ JSON.stringify({
+                            <div class="bg-green-50 rounded-lg p-4 mb-4">
+                                <pre class="text-xs text-green-800 overflow-auto max-h-80 font-mono">{{ JSON.stringify({
                                     id: selectedLog?.id,
                                     guest: {
                                         id: selectedLog?.guest_id,
@@ -590,22 +590,22 @@ const pageNumbers = computed(() => {
                         </div>
 
                         <!-- Modal Footer -->
-                        <div class="p-5 border-t border-gray-200 flex gap-3 justify-end">
+                        <div class="p-5 border-t border-green-200 flex gap-3 justify-end">
                             <button
                                 @click="exportSingleJSON"
-                                class="px-4 py-2 text-sm font-medium text-white bg-gray-900 hover:bg-gray-800 rounded-lg transition-colors"
+                                class="px-4 py-2 text-sm font-medium text-white bg-green-900 hover:bg-green-800 rounded-lg transition-colors"
                             >
                                 Export JSON
                             </button>
                             <button
                                 @click="exportSinglePDF"
-                                class="px-4 py-2 text-sm font-medium text-white bg-gray-900 hover:bg-gray-800 rounded-lg transition-colors"
+                                class="px-4 py-2 text-sm font-medium text-white bg-green-900 hover:bg-green-800 rounded-lg transition-colors"
                             >
                                 Export PDF
                             </button>
                             <button
                                 @click="closeModal"
-                                class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-lg transition-colors"
+                                class="px-4 py-2 text-sm font-medium text-green-700 bg-white border border-green-300 hover:bg-green-50 rounded-lg transition-colors"
                             >
                                 Close
                             </button>

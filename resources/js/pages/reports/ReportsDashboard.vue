@@ -54,10 +54,10 @@ const currentReportType = computed(() => {
 // Get type badge styles
 const getTypeBadgeStyles = (type) => {
     const styles = {
-        usage: { bg: 'bg-blue-100', text: 'text-blue-900', icon: 'text-blue-600' },
-        feedback: { bg: 'bg-green-100', text: 'text-green-900', icon: 'text-green-600' },
-        facility: { bg: 'bg-purple-100', text: 'text-purple-900', icon: 'text-purple-600' },
-        search: { bg: 'bg-orange-100', text: 'text-orange-900', icon: 'text-orange-600' }
+        usage: { bg: 'bg-green-50', text: 'text-green-900', icon: 'text-green-700' },
+        feedback: { bg: 'bg-green-50', text: 'text-green-900', icon: 'text-green-700' },
+        facility: { bg: 'bg-green-50', text: 'text-green-900', icon: 'text-green-700' },
+        search: { bg: 'bg-green-50', text: 'text-green-900', icon: 'text-green-700' }
     };
     return styles[type] || styles.usage;
 };
@@ -187,12 +187,12 @@ const openReport = (reportId) => {
             <!-- Header -->
             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8">
                 <div>
-                    <h2 class="text-2xl font-bold text-gray-900">Reports</h2>
-                    <p class="mt-1 text-sm text-gray-600">Generate and manage system reports</p>
+                    <h2 class="text-2xl font-bold text-green-900">Reports</h2>
+                    <p class="mt-1 text-sm text-green-700">Generate and manage system reports</p>
                 </div>
                 <button
                     @click="showModal = true"
-                    class="mt-4 sm:mt-0 flex items-center gap-2 px-4 py-2 text-sm text-white bg-gray-900 hover:bg-gray-800 rounded-lg transition"
+                    class="mt-4 sm:mt-0 flex items-center gap-2 px-4 py-2 text-sm text-white bg-green-900 hover:bg-green-800 rounded-lg transition"
                 >
                     <PlusIcon class="h-4 w-4" />
                     <span>Generate Report</span>
@@ -207,7 +207,7 @@ const openReport = (reportId) => {
                     class="bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg hover:border-gray-300 transition-all duration-300 flex flex-col group"
                 >
                     <!-- Card Header with Type Badge -->
-                    <div class="p-4 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+                    <div class="p-4 border-b border-green-100 bg-gradient-to-r from-green-50 to-white">
                         <div class="flex items-start justify-between gap-3 mb-3">
                             <component
                                 :is="getTypeIcon(report.type)"
@@ -224,27 +224,27 @@ const openReport = (reportId) => {
                                 {{ report.type }}
                             </span>
                         </div>
-                        <h3 class="text-sm font-semibold text-gray-900 line-clamp-2 group-hover:text-gray-700">
+                        <h3 class="text-sm font-semibold text-green-900 line-clamp-2 group-hover:text-green-700">
                             {{ report.title }}
                         </h3>
                     </div>
 
                     <!-- Card Body -->
                     <div class="flex-1 p-4">
-                        <p class="text-xs text-gray-600 line-clamp-2 mb-4">
+                        <p class="text-xs text-green-700 line-clamp-2 mb-4">
                             {{ report.description }}
                         </p>
 
                         <!-- Date Info -->
                         <div class="space-y-2 mb-4">
-                            <div v-if="report.period_from" class="flex items-center gap-2 text-xs text-gray-600">
-                                <CalendarIcon class="h-3.5 w-3.5 flex-shrink-0" />
+                            <div v-if="report.period_from" class="flex items-center gap-2 text-xs text-green-700">
+                                <CalendarIcon class="h-3.5 w-3.5 flex-shrink-0 text-green-600" />
                                 <span class="truncate">
                                     {{ formatDate(report.period_from) }} to {{ formatDate(report.period_to) }}
                                 </span>
                             </div>
-                            <div class="flex items-center gap-2 text-xs text-gray-500">
-                                <CalendarIcon class="h-3.5 w-3.5 flex-shrink-0" />
+                            <div class="flex items-center gap-2 text-xs text-green-600">
+                                <CalendarIcon class="h-3.5 w-3.5 flex-shrink-0 text-green-600" />
                                 <span class="truncate">{{ formatDate(report.created_at) }} {{ formatTime(report.created_at) }}</span>
                             </div>
                         </div>
@@ -252,7 +252,7 @@ const openReport = (reportId) => {
                         <!-- Status Badge -->
                         <div class="mb-4">
                             <span
-                                class="inline-flex px-2 py-1 text-xs font-medium rounded bg-gray-100 text-gray-700 capitalize"
+                                class="inline-flex px-2 py-1 text-xs font-medium rounded bg-green-50 text-green-700 capitalize"
                             >
                                 {{ report.status }}
                             </span>
@@ -260,10 +260,10 @@ const openReport = (reportId) => {
                     </div>
 
                     <!-- Card Footer with Actions -->
-                    <div class="p-4 border-t border-gray-100 bg-gray-50 flex gap-2">
+                    <div class="p-4 border-t border-green-100 bg-green-50 flex gap-2">
                         <button
                             @click="openReport(report.id)"
-                            class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-white bg-gray-900 hover:bg-gray-800 rounded-lg transition"
+                            class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-white bg-green-900 hover:bg-green-800 rounded-lg transition"
                         >
                             <EyeIcon class="h-4 w-4" />
                             <span>View</span>
@@ -280,12 +280,12 @@ const openReport = (reportId) => {
 
             <!-- Empty State -->
             <div v-else class="flex flex-col items-center justify-center py-16">
-                <DocumentChartBarIcon class="h-12 w-12 text-gray-300 mb-4" />
-                <h3 class="text-lg font-semibold text-gray-900 mb-2">No reports yet</h3>
-                <p class="text-sm text-gray-600 mb-6">Generate your first report to get started</p>
+                <DocumentChartBarIcon class="h-12 w-12 text-green-300 mb-4" />
+                <h3 class="text-lg font-semibold text-green-900 mb-2">No reports yet</h3>
+                <p class="text-sm text-green-700 mb-6">Generate your first report to get started</p>
                 <button
                     @click="showModal = true"
-                    class="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gray-900 hover:bg-gray-800 rounded-lg transition"
+                    class="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-900 hover:bg-green-800 rounded-lg transition"
                 >
                     <PlusIcon class="h-4 w-4" />
                     Generate Report
@@ -299,9 +299,9 @@ const openReport = (reportId) => {
                 <Transition name="modal-scale">
                     <div v-if="showModal" class="bg-white rounded-lg shadow-lg w-full max-w-md" @click.stop>
                         <!-- Modal Header -->
-                        <div class="p-5 border-b border-gray-200 flex items-center justify-between">
-                            <h3 class="text-lg font-semibold text-gray-900">Generate Report</h3>
-                            <button @click="showModal = false" class="text-gray-600 hover:text-gray-900">
+                        <div class="p-5 border-b border-green-200 flex items-center justify-between">
+                            <h3 class="text-lg font-semibold text-green-900">Generate Report</h3>
+                            <button @click="showModal = false" class="text-green-700 hover:text-green-900">
                                 <XMarkIcon class="w-5 h-5" />
                             </button>
                         </div>
@@ -310,59 +310,59 @@ const openReport = (reportId) => {
                         <form @submit.prevent="generateReport" class="p-5 space-y-4">
                             <!-- Report Type Selection -->
                             <div>
-                                <label class="block text-sm font-medium text-gray-900 mb-2">Report Type</label>
+                                <label class="block text-sm font-medium text-green-900 mb-2">Report Type</label>
                                 <select
                                     v-model="reportType"
-                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
+                                    class="w-full px-4 py-2 border border-green-300 rounded-lg text-sm focus:border-green-900 focus:outline-none focus:ring-1 focus:ring-green-900"
                                 >
                                     <option v-for="type in reportTypes" :key="type.value" :value="type.value">
                                         {{ type.label }}
                                     </option>
                                 </select>
-                                <p class="text-xs text-gray-600 mt-1">{{ currentReportType?.description }}</p>
+                                <p class="text-xs text-green-700 mt-1">{{ currentReportType?.description }}</p>
                             </div>
 
                             <!-- Date Range (if not facility) -->
                             <div v-if="reportType !== 'facility'" class="space-y-2">
-                                <label class="block text-sm font-medium text-gray-900">Period</label>
+                                <label class="block text-sm font-medium text-green-900">Period</label>
                                 <div class="flex gap-2">
                                     <input
                                         v-model="periodFrom"
                                         type="date"
-                                        class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
+                                        class="flex-1 px-4 py-2 border border-green-300 rounded-lg text-sm focus:border-green-900 focus:outline-none focus:ring-1 focus:ring-green-900"
                                     />
                                     <input
                                         v-model="periodTo"
                                         type="date"
-                                        class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
+                                        class="flex-1 px-4 py-2 border border-green-300 rounded-lg text-sm focus:border-green-900 focus:outline-none focus:ring-1 focus:ring-green-900"
                                     />
                                 </div>
                             </div>
 
                             <!-- Custom Title -->
                             <div>
-                                <label class="block text-sm font-medium text-gray-900 mb-2">Title (Optional)</label>
+                                <label class="block text-sm font-medium text-green-900 mb-2">Title (Optional)</label>
                                 <input
                                     v-model="customTitle"
                                     type="text"
                                     placeholder="Custom report title"
-                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
+                                    class="w-full px-4 py-2 border border-green-300 rounded-lg text-sm focus:border-green-900 focus:outline-none focus:ring-1 focus:ring-green-900"
                                 />
                             </div>
                         </form>
 
                         <!-- Modal Footer -->
-                        <div class="p-5 border-t border-gray-200 flex gap-3 justify-end">
+                        <div class="p-5 border-t border-green-200 flex gap-3 justify-end">
                             <button
                                 @click="showModal = false"
-                                class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-lg transition"
+                                class="px-4 py-2 text-sm font-medium text-green-700 bg-white border border-green-300 hover:bg-green-50 rounded-lg transition"
                             >
                                 Cancel
                             </button>
                             <button
                                 @click="generateReport"
                                 :disabled="isGenerating"
-                                class="px-4 py-2 text-sm font-medium text-white bg-gray-900 hover:bg-gray-800 rounded-lg transition disabled:opacity-50 flex items-center gap-2"
+                                class="px-4 py-2 text-sm font-medium text-white bg-green-900 hover:bg-green-800 rounded-lg transition disabled:opacity-50 flex items-center gap-2"
                             >
                                 <ArrowPathIcon v-if="isGenerating" class="h-4 w-4 animate-spin" />
                                 <span>{{ isGenerating ? 'Generating...' : 'Generate' }}</span>
@@ -385,28 +385,28 @@ const openReport = (reportId) => {
                                     <ExclamationTriangleIcon class="w-6 h-6 text-red-600" />
                                 </div>
                                 <div>
-                                    <h3 class="text-lg font-semibold text-gray-900">Delete Report</h3>
-                                    <p class="text-sm text-gray-600 mt-1">This action cannot be undone</p>
+                                    <h3 class="text-lg font-semibold text-green-900">Delete Report</h3>
+                                    <p class="text-sm text-green-700 mt-1">This action cannot be undone</p>
                                 </div>
                             </div>
 
                             <!-- Report Details -->
-                            <div v-if="reportToDelete" class="bg-gray-50 rounded-lg p-4 mb-4">
-                                <p class="text-sm font-medium text-gray-900 mb-1">{{ reportToDelete.title }}</p>
-                                <p class="text-xs text-gray-600">{{ reportToDelete.description }}</p>
+                            <div v-if="reportToDelete" class="bg-green-50 rounded-lg p-4 mb-4">
+                                <p class="text-sm font-medium text-green-900 mb-1">{{ reportToDelete.title }}</p>
+                                <p class="text-xs text-green-700">{{ reportToDelete.description }}</p>
                             </div>
 
-                            <p class="text-sm text-gray-700">
+                            <p class="text-sm text-green-800">
                                 Are you sure you want to delete this report? All data associated with this report will be permanently removed.
                             </p>
                         </div>
 
                         <!-- Modal Footer -->
-                        <div class="p-6 border-t border-gray-200 flex gap-3 justify-end">
+                        <div class="p-6 border-t border-green-200 flex gap-3 justify-end">
                             <button
                                 @click="cancelDelete"
                                 :disabled="isDeleting"
-                                class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-lg transition disabled:opacity-50"
+                                class="px-4 py-2 text-sm font-medium text-green-700 bg-white border border-green-300 hover:bg-green-50 rounded-lg transition disabled:opacity-50"
                             >
                                 Cancel
                             </button>

@@ -216,7 +216,7 @@ export function useGPSTracking(map, guestInfo) {
             break
           case err.TIMEOUT:
             errorMessage = 'GPS timeout. Trying to reconnect...'
-            setTimeout(startTracking, 2000)
+            setTimeout(startTracking, 5000)
             break
         }
 

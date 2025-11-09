@@ -372,11 +372,11 @@ const pageNumbers = computed(() => {
         <!-- Header -->
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
             <div>
-                <h2 class="text-2xl font-bold text-gray-900">Facilities</h2>
-                <p class="mt-1 text-sm text-gray-600">Manage campus facilities and locations</p>
+                <h2 class="text-2xl font-bold text-green-900">Facilities</h2>
+                <p class="mt-1 text-sm text-green-700">Manage campus facilities and locations</p>
             </div>
             <div class="mt-4 sm:mt-0">
-                <span class="text-sm text-gray-700 font-medium">
+                <span class="text-sm text-green-700 font-medium">
                     {{ filteredFacilities.length }} {{ filteredFacilities.length === 1 ? 'facility' : 'facilities' }}
                 </span>
             </div>
@@ -386,18 +386,18 @@ const pageNumbers = computed(() => {
         <div class="flex flex-col sm:flex-row gap-3 mb-6">
             <!-- Search -->
             <div class="relative flex-1 max-w-md">
-                <MagnifyingGlassIcon class="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                <MagnifyingGlassIcon class="absolute left-3 top-2.5 h-4 w-4 text-green-700" />
                 <input
                     v-model="searchQuery"
                     type="text"
                     placeholder="Search facilities, category, or department..."
-                    class="w-full pl-9 pr-8 py-2 border border-gray-300 rounded-lg text-sm focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
+                    class="w-full pl-9 pr-8 py-2 border border-green-300 rounded-lg text-sm focus:border-green-900 focus:outline-none focus:ring-1 focus:ring-green-900"
                 />
                 <button
                     v-if="searchQuery"
                     @click="searchQuery = ''"
                     type="button"
-                    class="absolute right-3 top-2.5 text-gray-500 hover:text-gray-700 transition-colors"
+                    class="absolute right-3 top-2.5 text-green-600 hover:text-green-900 transition-colors"
                 >
                     <XMarkIcon class="w-4 h-4" />
                 </button>
@@ -406,7 +406,7 @@ const pageNumbers = computed(() => {
             <!-- Status Filter -->
             <select
                 v-model="statusFilter"
-                class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
+                class="px-3 py-2 border border-green-300 rounded-lg text-sm focus:border-green-900 focus:outline-none focus:ring-1 focus:ring-green-900"
             >
                 <option value="all">All Status</option>
                 <option value="active">Active</option>
@@ -417,7 +417,7 @@ const pageNumbers = computed(() => {
             <button
                 v-if="hasActiveFilters"
                 @click="clearFilters"
-                class="px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors"
+                class="px-4 py-2 bg-green-900 text-white rounded-lg text-sm font-medium hover:bg-green-800 transition-colors"
             >
                 Clear Filters
             </button>
@@ -428,33 +428,33 @@ const pageNumbers = computed(() => {
                     @click="refreshData"
                     :disabled="loading"
                     type="button"
-                    class="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition disabled:opacity-50"
+                    class="p-2 text-green-700 hover:text-green-900 hover:bg-green-50 rounded-lg transition disabled:opacity-50"
                 >
                     <ArrowPathIcon :class="['h-4 w-4', loading ? 'animate-spin' : '']" />
                 </button>
                 <button
                     @click="openAddModal"
                     type="button"
-                    class="flex items-center gap-2 px-4 py-2 text-sm text-white bg-gray-900 hover:bg-gray-800 rounded-lg transition"
+                    class="flex items-center gap-2 px-4 py-2 text-sm text-white bg-green-900 hover:bg-green-800 rounded-lg transition"
                 >
                     <PlusIcon class="h-4 w-4" />
-                    <span>Add</span>
+                    <span>Create Facility</span>
                 </button>
             </div>
         </div>
 
         <!-- Table Container -->
-        <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
+        <div class="bg-white border border-green-200 rounded-lg overflow-hidden">
             <!-- Loading State -->
             <div v-if="loading" class="text-center py-12">
-                <ArrowPathIcon class="h-6 w-6 animate-spin mx-auto text-gray-400 mb-2" />
-                <p class="text-sm text-gray-600">Loading...</p>
+                <ArrowPathIcon class="h-6 w-6 animate-spin mx-auto text-green-600 mb-2" />
+                <p class="text-sm text-green-700">Loading...</p>
             </div>
 
             <!-- Empty State -->
             <div v-else-if="filteredFacilities.length === 0" class="text-center py-12">
-                <BuildingOffice2Icon class="h-8 w-8 mx-auto text-gray-300 mb-2" />
-                <h3 class="text-lg font-semibold text-gray-900 mb-2">No facilities found</h3>
+                <BuildingOffice2Icon class="h-8 w-8 mx-auto text-green-300 mb-2" />
+                <h3 class="text-lg font-semibold text-green-900 mb-2">No facilities found</h3>
                 <p class="text-sm text-gray-600">Try adjusting your filters or create a new facility</p>
             </div>
 
@@ -463,55 +463,55 @@ const pageNumbers = computed(() => {
                 <div
                     v-for="facility in filteredFacilities"
                     :key="facility.id"
-                    class="break-inside-avoid bg-white border border-gray-200 rounded-lg p-4 hover:shadow-lg hover:border-gray-300 transition-all duration-200 cursor-pointer group"
+                    class="break-inside-avoid bg-white border border-green-200 rounded-lg p-4 hover:shadow-lg hover:border-green-300 transition-all duration-200 cursor-pointer group"
                 >
                     <!-- Header with Status -->
                     <div class="flex items-start justify-between mb-3">
                         <div>
-                            <h3 class="text-sm font-semibold text-gray-900">{{ facility.name }}</h3>
-                            <p class="text-xs text-gray-600 mt-1">{{ facility.category }}</p>
+                            <h3 class="text-sm font-semibold text-green-900">{{ facility.name }}</h3>
+                            <p class="text-xs text-green-700 mt-1">{{ facility.category }}</p>
                         </div>
-                        <button @click.stop="handleView(facility)" class="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-gray-100 rounded">
-                            <EyeIcon class="w-4 h-4 text-gray-700" />
+                        <button @click.stop="handleView(facility)" class="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-green-50 rounded">
+                            <EyeIcon class="w-4 h-4 text-green-900" />
                         </button>
                     </div>
 
                     <!-- Department & Location -->
                     <div class="mb-3 space-y-2">
                         <div>
-                            <p class="text-xs font-semibold text-gray-900">Department</p>
+                            <p class="text-xs font-semibold text-green-900">Department</p>
                             <p class="text-sm text-gray-700">{{ facility.department }}</p>
                         </div>
                         <div>
-                            <p class="text-xs font-semibold text-gray-900">📍 Location</p>
+                            <p class="text-xs font-semibold text-green-900">📍 Location</p>
                             <p class="text-sm text-gray-700">{{ facility.marker ? facility.marker.label : 'N/A' }}</p>
                         </div>
                     </div>
 
                     <!-- Photos Section -->
                     <div class="mb-3">
-                        <p class="text-xs font-semibold text-gray-900 mb-2">Photos</p>
+                        <p class="text-xs font-semibold text-green-900 mb-2">Photos</p>
                         <div v-if="facility.photos && facility.photos.length > 0" class="grid grid-cols-2 gap-2">
                             <!-- Show first 2 photos -->
                             <div v-for="(photo, index) in facility.photos.slice(0, 2)" :key="photo.id" class="relative">
-                                <img :src="photo.url" :alt="'Photo ' + (index + 1)" class="w-full h-20 object-cover rounded border border-gray-200" />
+                                <img :src="photo.url" :alt="'Photo ' + (index + 1)" class="w-full h-20 object-cover rounded border border-green-200" />
                             </div>
                             <!-- Show "more" if there are more than 2 photos -->
                             <div v-if="facility.photos.length > 2" class="relative">
-                                <img :src="facility.photos[2].url" :alt="'Photo 3'" class="w-full h-20 object-cover rounded border border-gray-200 opacity-40" />
+                                <img :src="facility.photos[2].url" :alt="'Photo 3'" class="w-full h-20 object-cover rounded border border-green-200 opacity-40" />
                                 <button
                                     @click.stop="viewedFacility = facility; viewModalOpen = true; showAllPhotos = true"
-                                    class="absolute inset-0 w-full h-full flex items-center justify-center bg-black/40 hover:bg-black/60 transition rounded text-white font-medium text-sm"
+                                    class="absolute inset-0 w-full h-full flex items-center justify-center bg-green-900/40 hover:bg-green-900/60 transition rounded text-white font-medium text-sm"
                                 >
                                     +{{ facility.photos.length - 2 }} More
                                 </button>
                             </div>
                         </div>
                         <!-- Placeholder when no photos -->
-                        <div v-else class="flex items-center justify-center py-4 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50">
+                        <div v-else class="flex items-center justify-center py-4 border-2 border-dashed border-green-300 rounded-lg bg-green-50">
                             <div class="text-center">
-                                <PhotoIcon class="w-6 h-6 text-gray-400 mx-auto mb-1" />
-                                <p class="text-xs text-gray-500">No photos added</p>
+                                <PhotoIcon class="w-6 h-6 text-green-700 mx-auto mb-1" />
+                                <p class="text-xs text-green-700">No photos added</p>
                             </div>
                         </div>
                     </div>
@@ -525,7 +525,7 @@ const pageNumbers = computed(() => {
                             :class="[
                                 'inline-flex px-2 py-1 text-xs font-semibold rounded-full',
                                 facility.status === 'active'
-                                    ? 'bg-gray-100 text-gray-900'
+                                    ? 'bg-green-50 text-green-900'
                                     : 'bg-gray-200 text-gray-700'
                             ]"
                         >
@@ -534,10 +534,10 @@ const pageNumbers = computed(() => {
                     </div>
 
                     <!-- Action Buttons -->
-                    <div class="flex gap-2 pt-3 border-t border-gray-100">
+                    <div class="flex gap-2 pt-3 border-t border-green-100">
                         <button
                             @click.stop="handleEdit(facility)"
-                            class="flex-1 px-3 py-2 text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded transition"
+                            class="flex-1 px-3 py-2 text-xs font-medium text-green-900 bg-green-50 hover:bg-green-100 rounded transition"
                             type="button"
                         >
                             Edit
@@ -561,10 +561,10 @@ const pageNumbers = computed(() => {
             <Transition name="modal-scale">
                 <div v-if="viewModalOpen" class="bg-white rounded-lg shadow-lg w-full max-w-xl max-h-[75vh] overflow-hidden" @click.stop>
                     <!-- Modal Header -->
-                    <div class="p-5 border-b border-gray-200">
+                    <div class="p-5 border-b border-green-200 bg-green-50">
                         <div class="flex items-center justify-between">
-                            <h3 class="text-lg font-semibold text-gray-900">{{ viewedFacility?.name }}</h3>
-                            <button @click="closeViewModal" type="button" class="text-gray-600 hover:text-gray-900 transition-colors">
+                            <h3 class="text-lg font-semibold text-green-900">{{ viewedFacility?.name }}</h3>
+                            <button @click="closeViewModal" type="button" class="text-green-700 hover:text-green-900 transition-colors">
                                 <XMarkIcon class="w-5 h-5" />
                             </button>
                         </div>
@@ -574,38 +574,38 @@ const pageNumbers = computed(() => {
                     <div class="p-5 overflow-y-auto max-h-[calc(75vh-140px)] space-y-4">
                         <div class="grid grid-cols-2 gap-4">
                             <div>
-                                <h4 class="text-xs font-semibold text-gray-900 mb-1 uppercase tracking-wide">Category</h4>
+                                <h4 class="text-xs font-semibold text-green-900 mb-1 uppercase tracking-wide">Category</h4>
                                 <p class="text-sm text-gray-700">{{ viewedFacility?.category }}</p>
                             </div>
                             <div>
-                                <h4 class="text-xs font-semibold text-gray-900 mb-1 uppercase tracking-wide">Department</h4>
+                                <h4 class="text-xs font-semibold text-green-900 mb-1 uppercase tracking-wide">Department</h4>
                                 <p class="text-sm text-gray-700">{{ viewedFacility?.department }}</p>
                             </div>
                             <div>
-                                <h4 class="text-xs font-semibold text-gray-900 mb-1 uppercase tracking-wide">Hours</h4>
+                                <h4 class="text-xs font-semibold text-green-900 mb-1 uppercase tracking-wide">Hours</h4>
                                 <p class="text-sm text-gray-700">{{ viewedFacility?.hours || 'N/A' }}</p>
                             </div>
                             <div>
                                 <h4 class="text-xs font-semibold text-gray-900 mb-1 uppercase tracking-wide">Status</h4>
                                 <span
                                     :class="[
-                                        'inline-flex px-3 py-1 text-xs font-semibold rounded-full',
-                                        viewedFacility?.status === 'active'
-                                            ? 'bg-gray-100 text-gray-900'
+                                        'inline-flex px-2 py-0.5 text-xs font-semibold rounded',
+                                        selectedFacility?.status === 'active'
+                                            ? 'bg-green-50 text-green-900'
                                             : 'bg-gray-200 text-gray-700'
                                     ]"
                                 >
-                                    {{ viewedFacility?.status }}
+                                    {{ selectedFacility?.status }}
                                 </span>
                             </div>
                         </div>
 
                         <!-- Photos Section -->
                         <div v-if="viewedFacility?.photos && viewedFacility?.photos.length > 0">
-                            <h4 class="text-xs font-semibold text-gray-900 mb-2 uppercase tracking-wide">Photos ({{ viewedFacility.photos.length }})</h4>
+                            <h4 class="text-xs font-semibold text-green-900 mb-2 uppercase tracking-wide">Photos ({{ viewedFacility.photos.length }})</h4>
                             <div class="grid grid-cols-3 gap-2">
                                 <div v-for="(photo, index) in viewedFacility.photos" :key="photo.id" class="relative group">
-                                    <img :src="photo.url" :alt="'Photo ' + (index + 1)" class="w-full h-24 object-cover rounded border border-gray-200" />
+                                    <img :src="photo.url" :alt="'Photo ' + (index + 1)" class="w-full h-24 object-cover rounded border border-green-200" />
                                     <button
                                         @click.stop="markExistingPhotoForDeletion(photo.id); viewedFacility.photos.splice(index, 1);"
                                         type="button"
@@ -619,27 +619,27 @@ const pageNumbers = computed(() => {
                         </div>
 
                         <div v-if="viewedFacility?.marker">
-                            <h4 class="text-xs font-semibold text-gray-900 mb-2 uppercase tracking-wide">Location</h4>
-                            <div class="p-3 bg-gray-50 rounded-lg">
-                                <p class="font-medium text-gray-900 text-sm">{{ viewedFacility.marker.label }}</p>
-                                <p class="text-xs text-gray-600 mt-1">{{ viewedFacility.marker.type }}</p>
+                            <h4 class="text-xs font-semibold text-green-900 mb-2 uppercase tracking-wide">Location</h4>
+                            <div class="p-3 bg-green-50 rounded-lg border border-green-200">
+                                <p class="font-medium text-green-900 text-sm">{{ viewedFacility.marker.label }}</p>
+                                <p class="text-xs text-green-700 mt-1">{{ viewedFacility.marker.type }}</p>
                                 <p class="text-xs text-gray-600 mt-2">Lat: {{ viewedFacility.marker.latitude }}, Lng: {{ viewedFacility.marker.longitude }}</p>
                             </div>
                         </div>
 
                         <div v-if="viewedFacility?.description">
-                            <h4 class="text-xs font-semibold text-gray-900 mb-2 uppercase tracking-wide">Description</h4>
-                            <div class="p-3 bg-gray-50 rounded-lg">
+                            <h4 class="text-xs font-semibold text-green-900 mb-2 uppercase tracking-wide">Description</h4>
+                            <div class="p-3 bg-green-50 rounded-lg border border-green-200">
                                 <p class="text-sm text-gray-700 whitespace-pre-wrap">{{ viewedFacility.description }}</p>
                             </div>
                         </div>
                     </div>
 
                     <!-- Modal Footer -->
-                    <div class="p-5 border-t border-gray-200">
+                    <div class="p-5 border-t border-green-200">
                         <button
                             @click="closeViewModal"
-                            class="w-full px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors"
+                            class="w-full px-4 py-2 bg-green-900 text-white rounded-lg text-sm font-medium hover:bg-green-800 transition-colors"
                         >
                             Close
                         </button>
@@ -725,12 +725,12 @@ const pageNumbers = computed(() => {
             <Transition name="modal-scale">
                 <div v-if="isOpen" class="bg-white rounded-lg shadow-lg w-full max-w-2xl max-h-[90vh] overflow-hidden" @click.stop>
                     <!-- Modal Header -->
-                    <div class="p-5 border-b border-gray-200">
+                    <div class="p-5 border-b border-green-200 bg-green-50">
                         <div class="flex items-center justify-between">
-                            <h3 class="text-lg font-semibold text-gray-900">
+                            <h3 class="text-lg font-semibold text-green-900">
                                 {{ isEditMode ? 'Edit Facility' : 'Add Facility' }}
                             </h3>
-                            <button @click="closeModal" :disabled="isSaving" type="button" class="text-gray-600 hover:text-gray-900 transition-colors disabled:opacity-50">
+                            <button @click="closeModal" :disabled="isSaving" type="button" class="text-green-700 hover:text-green-900 transition-colors disabled:opacity-50">
                                 <XMarkIcon class="w-5 h-5" />
                             </button>
                         </div>
@@ -740,53 +740,53 @@ const pageNumbers = computed(() => {
                     <form @submit.prevent="saveFacility" class="p-5 overflow-y-auto max-h-[calc(90vh-140px)]">
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-sm font-medium text-gray-900 mb-1">Name</label>
+                                <label class="block text-sm font-medium text-green-900 mb-1">Name</label>
                                 <TextInput
                                     v-model="data.name"
                                     type="text"
                                     placeholder="Facility name"
                                     required
-                                    class="w-full px-4 py-2 text-sm border border-gray-300 rounded-lg focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
+                                    class="w-full px-4 py-2 text-sm border border-green-300 rounded-lg focus:border-green-900 focus:outline-none focus:ring-1 focus:ring-green-900"
                                 />
                             </div>
 
                             <div>
-                                <label class="block text-sm font-medium text-gray-900 mb-1">Category</label>
+                                <label class="block text-sm font-medium text-green-900 mb-1">Category</label>
                                 <TextInput
                                     v-model="data.category"
                                     type="text"
                                     placeholder="Category"
                                     required
-                                    class="w-full px-4 py-2 text-sm border border-gray-300 rounded-lg focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
+                                    class="w-full px-4 py-2 text-sm border border-green-300 rounded-lg focus:border-green-900 focus:outline-none focus:ring-1 focus:ring-green-900"
                                 />
                             </div>
 
                             <div>
-                                <label class="block text-sm font-medium text-gray-900 mb-1">Department</label>
+                                <label class="block text-sm font-medium text-green-900 mb-1">Department</label>
                                 <TextInput
                                     v-model="data.department"
                                     type="text"
                                     placeholder="Department"
                                     required
-                                    class="w-full px-4 py-2 text-sm border border-gray-300 rounded-lg focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
+                                    class="w-full px-4 py-2 text-sm border border-green-300 rounded-lg focus:border-green-900 focus:outline-none focus:ring-1 focus:ring-green-900"
                                 />
                             </div>
 
                             <div>
-                                <label class="block text-sm font-medium text-gray-900 mb-1">Hours</label>
+                                <label class="block text-sm font-medium text-green-900 mb-1">Hours</label>
                                 <TextInput
                                     v-model="data.hours"
                                     type="text"
                                     placeholder="9:00 AM - 5:00 PM"
-                                    class="w-full px-4 py-2 text-sm border border-gray-300 rounded-lg focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
+                                    class="w-full px-4 py-2 text-sm border border-green-300 rounded-lg focus:border-green-900 focus:outline-none focus:ring-1 focus:ring-green-900"
                                 />
                             </div>
 
                             <div>
-                                <label class="block text-sm font-medium text-gray-900 mb-1">Status</label>
+                                <label class="block text-sm font-medium text-green-900 mb-1">Status</label>
                                 <select
                                     v-model="data.status"
-                                    class="w-full px-4 py-2 text-sm border border-gray-300 rounded-lg focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
+                                    class="w-full px-4 py-2 text-sm border border-green-300 rounded-lg focus:border-green-900 focus:outline-none focus:ring-1 focus:ring-green-900"
                                 >
                                     <option value="active">Active</option>
                                     <option value="inactive">Inactive</option>
@@ -794,10 +794,10 @@ const pageNumbers = computed(() => {
                             </div>
 
                             <div>
-                                <label class="block text-sm font-medium text-gray-900 mb-1">Marker</label>
+                                <label class="block text-sm font-medium text-green-900 mb-1">Marker</label>
                                 <select
                                     v-model="data.marker_id"
-                                    class="w-full px-4 py-2 text-sm border border-gray-300 rounded-lg focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
+                                    class="w-full px-4 py-2 text-sm border border-green-300 rounded-lg focus:border-green-900 focus:outline-none focus:ring-1 focus:ring-green-900"
                                 >
                                     <option :value="null">Select a marker</option>
                                     <option
@@ -812,7 +812,7 @@ const pageNumbers = computed(() => {
 
                             <!-- Photo Upload Section -->
                             <div class="md:col-span-2">
-                                <label class="block text-sm font-medium text-gray-900 mb-2">Photos</label>
+                                <label class="block text-sm font-medium text-green-900 mb-2">Photos</label>
 
                                 <!-- Drag & Drop Upload Area -->
                                 <div
@@ -822,15 +822,15 @@ const pageNumbers = computed(() => {
                                     :class="[
                                         'mb-3 p-6 border-2 border-dashed rounded-lg transition-colors cursor-pointer',
                                         isDraggingPhotos.value
-                                            ? 'border-blue-500 bg-blue-50'
-                                            : 'border-gray-300 hover:border-gray-400'
+                                            ? 'border-green-500 bg-green-50'
+                                            : 'border-green-300 hover:border-green-400'
                                     ]"
                                 >
                                     <label class="flex flex-col items-center justify-center cursor-pointer">
-                                        <PhotoIcon class="w-8 h-8 text-gray-400 mb-2" />
-                                        <span class="text-sm font-medium text-gray-700">Drag & drop photo or</span>
-                                        <span class="text-sm text-blue-600 hover:text-blue-700">browse</span>
-                                        <p class="text-xs text-gray-500 mt-1">Add one photo at a time (PNG, JPG, GIF)</p>
+                                        <PhotoIcon class="w-8 h-8 text-green-700 mb-2" />
+                                        <span class="text-sm font-medium text-green-900">Drag & drop photo or</span>
+                                        <span class="text-sm text-green-700 hover:text-green-900">browse</span>
+                                        <p class="text-xs text-green-700 mt-1">Add one photo at a time (PNG, JPG, GIF)</p>
                                         <input
                                             type="file"
                                             @change="handlePhotoSelect"
@@ -841,7 +841,7 @@ const pageNumbers = computed(() => {
                                 </div>
 
                                 <!-- Photo Preview Card - Like Facility Card -->
-                                <div v-if="photoPreviews.length > 0 || existingPhotos.length > 0" class="bg-white border border-gray-200 rounded-lg p-3 space-y-3">
+                                <div v-if="photoPreviews.length > 0 || existingPhotos.length > 0" class="bg-white border border-green-200 rounded-lg p-3 space-y-3">
                                     <!-- Show first 2 photos in 2-column grid (smaller) -->
                                     <div v-if="(photoPreviews.length > 0 || existingPhotos.filter(p => !photosToDelete.includes(p.id)).length > 0)" class="grid grid-cols-2 gap-2">
                                         <!-- Existing Photos (smaller) -->
@@ -850,7 +850,7 @@ const pageNumbers = computed(() => {
                                             :key="'existing-' + photo.id"
                                             class="relative group"
                                         >
-                                            <img :src="photo.url" :alt="'Photo ' + (index + 1)" class="w-full h-16 object-cover rounded border border-gray-200" />
+                                            <img :src="photo.url" :alt="'Photo ' + (index + 1)" class="w-full h-16 object-cover rounded border border-green-200" />
                                             <button
                                                 @click="markExistingPhotoForDeletion(photo.id)"
                                                 type="button"
@@ -867,7 +867,7 @@ const pageNumbers = computed(() => {
                                             :key="'preview-' + index"
                                             class="relative group"
                                         >
-                                            <img :src="preview.url" :alt="'New photo ' + (index + 1)" class="w-full h-16 object-cover rounded border border-gray-200" />
+                                            <img :src="preview.url" :alt="'New photo ' + (index + 1)" class="w-full h-16 object-cover rounded border border-green-200" />
                                             <button
                                                 @click="removeNewPhoto(index)"
                                                 type="button"
@@ -876,15 +876,15 @@ const pageNumbers = computed(() => {
                                             >
                                                 <XMarkIcon class="w-3 h-3" />
                                             </button>
-                                            <div class="absolute bottom-1 left-1 px-1.5 py-0.5 bg-blue-600 text-white text-xs font-medium rounded">
+                                            <div class="absolute bottom-1 left-1 px-1.5 py-0.5 bg-green-600 text-white text-xs font-medium rounded">
                                                 New
                                             </div>
                                         </div>
 
                                         <!-- Show "more" if there are more than 2 photos total -->
                                         <div v-if="(existingPhotos.filter(p => !photosToDelete.includes(p.id)).length + photoPreviews.length) > 2" class="relative group">
-                                            <img :src="(existingPhotos.filter(p => !photosToDelete.includes(p.id))[2] || photoPreviews[2])?.url || photoPreviews[0]?.url" :alt="'Photo 3'" class="w-full h-16 object-cover rounded border border-gray-200 opacity-40" />
-                                            <div class="absolute inset-0 w-full h-full flex items-center justify-center bg-black/40 rounded text-white font-medium text-sm">
+                                            <img :src="(existingPhotos.filter(p => !photosToDelete.includes(p.id))[2] || photoPreviews[2])?.url || photoPreviews[0]?.url" :alt="'Photo 3'" class="w-full h-16 object-cover rounded border border-green-200 opacity-40" />
+                                            <div class="absolute inset-0 w-full h-full flex items-center justify-center bg-green-900/40 rounded text-white font-medium text-sm">
                                                 +{{ (existingPhotos.filter(p => !photosToDelete.includes(p.id)).length + photoPreviews.length) - 2 }}
                                             </div>
                                         </div>
@@ -892,31 +892,31 @@ const pageNumbers = computed(() => {
                                 </div>
 
                                 <!-- Empty State -->
-                                <div v-else class="flex flex-col items-center justify-center py-6 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50">
-                                    <PhotoIcon class="w-8 h-8 text-gray-400 mb-2" />
-                                    <p class="text-sm text-gray-500">No photos added yet</p>
+                                <div v-else class="flex flex-col items-center justify-center py-6 border-2 border-dashed border-green-300 rounded-lg bg-green-50">
+                                    <PhotoIcon class="w-8 h-8 text-green-700 mb-2" />
+                                    <p class="text-sm text-green-700">No photos added yet</p>
                                 </div>
                             </div>
 
                             <div class="md:col-span-2">
-                                <label class="block text-sm font-medium text-gray-900 mb-1">Description</label>
+                                <label class="block text-sm font-medium text-green-900 mb-1">Description</label>
                                 <textarea
                                     v-model="data.description"
                                     rows="4"
                                     placeholder="Facility description"
-                                    class="w-full px-4 py-2 text-sm border border-gray-300 rounded-lg focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900 resize-none"
+                                    class="w-full px-4 py-2 text-sm border border-green-300 rounded-lg focus:border-green-900 focus:outline-none focus:ring-1 focus:ring-green-900 resize-none"
                                 ></textarea>
                             </div>
                         </div>
                     </form>
 
                     <!-- Modal Footer -->
-                    <div class="p-5 border-t border-gray-200 flex gap-3 justify-end">
+                    <div class="p-5 border-t border-green-200 flex gap-3 justify-end">
                         <button
                             @click="closeModal"
                             :disabled="isSaving"
                             type="button"
-                            class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                            class="px-4 py-2 text-sm font-medium text-green-900 bg-white border border-green-300 hover:bg-green-50 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             Cancel
                         </button>
@@ -924,7 +924,7 @@ const pageNumbers = computed(() => {
                             @click="saveFacility"
                             :disabled="isSaving"
                             type="button"
-                            class="px-4 py-2 text-sm font-medium text-white bg-gray-900 hover:bg-gray-800 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                            class="px-4 py-2 text-sm font-medium text-white bg-green-900 hover:bg-green-800 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                         >
                             <ArrowPathIcon v-if="isSaving" class="h-4 w-4 animate-spin" />
                             <span>{{ isSaving ? (isEditMode ? 'Updating...' : 'Creating...') : (isEditMode ? 'Update' : 'Create') }}</span>

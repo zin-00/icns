@@ -2146,7 +2146,7 @@ onBeforeUnmount(() => {
               <button
                 type="button"
                 @click="startRouteToSelected"
-                class="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+                class="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-green-900 px-3 py-2 text-sm font-semibold text-white transition hover:bg-green-800"
               >
                 🧭 Start Navigation
               </button>
@@ -2207,7 +2207,7 @@ onBeforeUnmount(() => {
                   <p class="text-sm text-gray-600">📸 Click to upload a photo</p>
                   <button
                     type="button"
-                    class="inline-flex items-center justify-center rounded-md bg-gray-800 px-3 py-2 text-xs font-semibold text-white transition hover:bg-gray-700"
+                    class="inline-flex items-center justify-center rounded-md bg-green-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-green-800"
                     @click="triggerPhotoPicker"
                   >
                     Choose Photo
@@ -2233,7 +2233,7 @@ onBeforeUnmount(() => {
                     </button>
                     <button
                       type="button"
-                      class="rounded-md bg-gray-800 px-3 py-2 text-xs font-semibold text-white hover:bg-gray-700 transition"
+                      class="rounded-md bg-green-900 px-3 py-2 text-xs font-semibold text-white hover:bg-green-800 transition"
                       :disabled="isUploadingPhoto"
                       @click="uploadPhoto"
                     >
@@ -2297,9 +2297,9 @@ onBeforeUnmount(() => {
             </div>
 
             <!-- Info: One note per guest -->
-            <div class="text-xs text-gray-500 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 space-y-1">
+            <div class="text-xs text-gray-500 bg-green-50 border border-green-200 rounded-lg px-3 py-2 space-y-1">
               <p>💡 You can add one note that will appear on the map. It expires after 24 hours and is stored in your browser ({{ STORAGE_TYPE === 'localStorage' ? 'persists across sessions' : 'session only' }}).</p>
-              <p class="font-semibold text-blue-700">📍 Notes appear as purple bubbles above markers. Click the ✕ button to delete!</p>
+              <p class="font-semibold text-green-700">📍 Notes appear as purple bubbles above markers. Click the ✕ button to delete!</p>
             </div>
 
             <!-- Note Input - Hidden by Default -->
@@ -2323,7 +2323,7 @@ onBeforeUnmount(() => {
                 </button>
                 <button
                   type="button"
-                  class="rounded-md bg-gray-800 px-3 py-2 text-xs font-semibold text-white hover:bg-gray-700 transition"
+                  class="rounded-md bg-green-900 px-3 py-2 text-xs font-semibold text-white hover:bg-green-800 transition"
                   :disabled="isSavingNote || !noteContent.trim()"
                   @click.prevent="saveNote"
                 >
@@ -2351,7 +2351,7 @@ onBeforeUnmount(() => {
                 :class="[
                   'rounded-lg p-3 shadow-sm transition',
                   note.guest_id === guestInfo.id
-                    ? 'ml-8 bg-blue-100 border-l-4 border-blue-500'
+                    ? 'ml-8 bg-green-100 border-l-4 border-green-700'
                     : 'mr-8 bg-gray-100 border-l-4 border-gray-400'
                 ]"
               >
@@ -2359,7 +2359,7 @@ onBeforeUnmount(() => {
                   <div>
                     <p class="text-xs font-semibold text-gray-700">
                       {{ note.guest?.name || 'Guest' }}
-                      <span v-if="note.guest_id === guestInfo.id" class="text-blue-600"> (You)</span>
+                      <span v-if="note.guest_id === guestInfo.id" class="text-green-700"> (You)</span>
                     </p>
                     <p class="text-xs text-gray-500">{{ formatTimestamp(note.created_at) }}</p>
                   </div>
@@ -2405,7 +2405,7 @@ onBeforeUnmount(() => {
                 </button>
                 <button
                   type="button"
-                  class="rounded-md bg-gray-800 px-3 py-2 text-xs font-semibold text-white hover:bg-gray-700 transition"
+                  class="rounded-md bg-green-900 px-3 py-2 text-xs font-semibold text-white hover:bg-green-800 transition"
                   :disabled="isSavingFeedback || !feedback.trim()"
                   @click.prevent="saveFeedback"
                 >
@@ -2471,7 +2471,7 @@ onBeforeUnmount(() => {
               v-model="searchQuery"
               type="text"
               placeholder="Search for facilities..."
-              class="w-full rounded-lg border-0 py-2.5 pl-9 pr-10 text-xs focus:ring-2 focus:ring-blue-500 sm:py-3 sm:pl-10 sm:text-sm"
+              class="w-full rounded-lg border-0 py-2.5 pl-9 pr-10 text-xs focus:ring-2 focus:ring-green-900 sm:py-3 sm:pl-10 sm:text-sm"
             />
             <button
               v-if="searchQuery"
@@ -2522,7 +2522,7 @@ onBeforeUnmount(() => {
             :class="[
               'min-w-[44px] rounded-md px-2.5 py-2 text-xs font-medium transition sm:px-3 sm:text-sm',
               transportMode === mode.value
-                ? 'bg-blue-600 text-white'
+                ? 'bg-green-900 text-white'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             ]"
             :title="mode.label"
@@ -2536,7 +2536,7 @@ onBeforeUnmount(() => {
       <!-- User Profile -->
       <div v-if="isGuestInfoComplete" class="absolute top-4 right-4 z-10">
         <div class="flex items-center gap-2 rounded-lg bg-white px-3 py-2 shadow-lg sm:px-4">
-          <UserCircleIcon class="h-5 w-5 text-blue-600" />
+          <UserCircleIcon class="h-5 w-5 text-green-900" />
           <div class="hidden text-left sm:block">
             <p class="max-w-[120px] truncate text-xs font-semibold text-gray-900">{{ guestInfo.nickname }}</p>
             <p class="text-xs text-gray-500">{{ guestInfo.role }}</p>
@@ -2549,7 +2549,7 @@ onBeforeUnmount(() => {
         v-if="isGuestInfoComplete && routeInfo && !isDetailsPanelVisible"
         class="absolute left-4 top-20 hidden w-64 rounded-lg border border-gray-200 bg-white shadow-lg sm:block sm:w-72"
       >
-        <div class="flex items-center justify-between border-b border-gray-200 bg-gray-900 px-3 py-2">
+        <div class="flex items-center justify-between border-b border-gray-200 bg-green-900 px-3 py-2">
           <h3 class="text-xs font-semibold text-white">Route Info</h3>
           <button
             @click="routeInfo = null"
@@ -2568,7 +2568,7 @@ onBeforeUnmount(() => {
         v-if="showInstructions && !isDetailsPanelVisible"
         class="absolute bottom-20 left-4 right-4 z-20 flex max-h-52 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg sm:bottom-4 sm:left-auto sm:w-72"
       >
-        <div class="flex items-center justify-between border-b border-gray-200 bg-gray-900 px-3 py-2">
+        <div class="flex items-center justify-between border-b border-gray-200 bg-green-900 px-3 py-2">
           <h3 class="text-xs font-semibold text-white">Navigation</h3>
           <button
             @click="showInstructions = false"
@@ -2599,8 +2599,16 @@ onBeforeUnmount(() => {
         <div v-if="guestStep === 1" class="p-6 sm:p-8">
           <div class="mb-6 text-center sm:mb-8">
             <!-- Logo -->
-            <img src="../../../assets/logo.png" alt="Campus Navigator" class="mx-auto mb-2 h-12" />
-            <h2 class="mb-2 text-xl font-bold text-gray-900 sm:text-2xl">Welcome to Campus Navigator</h2>
+            <div class="flex items-center justify-center gap-3 mb-4">
+              <div class="h-12 w-12 bg-green-900 rounded-full flex items-center justify-center p-1.5 shadow-md">
+                <img src="../../../assets/logo.png" alt="ASSCAT Logo" class="h-full w-full object-contain" />
+              </div>
+              <div class="flex flex-col items-start">
+                <span class="text-lg font-bold text-green-900">ASSCAT</span>
+                <span class="text-xs font-medium text-gray-600">Campus Navigator</span>
+              </div>
+            </div>
+            <h2 class="mb-2 text-xl font-bold text-gray-900 sm:text-2xl">Welcome to ASSCAT Campus Navigator</h2>
             <p class="text-xs text-gray-500 sm:text-sm">Let's get started with your nickname</p>
           </div>
 
@@ -2610,7 +2618,7 @@ onBeforeUnmount(() => {
               type="text"
               placeholder="Enter your nickname"
               maxlength="50"
-              class="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 sm:text-base"
+              class="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm text-gray-900 focus:border-green-900 focus:outline-none focus:ring-1 focus:ring-green-900 sm:text-base"
               @keyup.enter="goToStep2"
             />
 
@@ -2620,7 +2628,7 @@ onBeforeUnmount(() => {
               :class="[
                 'w-full rounded-lg px-4 py-3 text-sm font-medium transition',
                 guestInfo.nickname.trim()
-                  ? 'bg-blue-600 text-white hover:bg-blue-700'
+                  ? 'bg-green-900 text-white hover:bg-green-800'
                   : 'cursor-not-allowed bg-gray-200 text-gray-400'
               ]"
             >
@@ -2643,7 +2651,7 @@ onBeforeUnmount(() => {
               :class="[
                 'flex w-full items-center gap-3 rounded-lg border-2 px-4 py-3 transition',
                 guestInfo.role === role.value
-                  ? 'border-blue-500 bg-blue-50'
+                  ? 'border-green-700 bg-green-50'
                   : 'border-gray-200 hover:border-gray-300'
               ]"
             >
@@ -2659,7 +2667,7 @@ onBeforeUnmount(() => {
               :class="[
                 'w-full rounded-lg px-4 py-3 text-sm font-medium transition',
                 guestInfo.role
-                  ? 'bg-blue-600 text-white hover:bg-blue-700'
+                  ? 'bg-green-900 text-white hover:bg-green-800'
                   : 'cursor-not-allowed bg-gray-200 text-gray-400'
               ]"
             >
