@@ -895,7 +895,7 @@ onMounted(() => {
       .listen('.MainEvent', (e) => {
         // COMPLETE REFRESH ON ANY EVENT
         // Always fetch all three to ensure consistency
-        
+
         if (e.type === 'route') {
           fetchRoutes()
         } else if (e.type === 'facility') {
@@ -1015,8 +1015,9 @@ watch(searchQuery, (query) => {
 
     <!-- Admin Controls (right, vertical, icons only) -->
     <div v-if="isAdmin" class="absolute top-15 right-4 z-[1000] flex flex-col items-end">
-      <!-- Base layer toggle -->
-      <div class="mb-2">
+      <!-- Primary controls: single column, 3 rows -->
+      <div class="flex flex-col gap-2 bg-white/90 p-0 rounded-lg shadow-lg">
+        <div class="mb-2">
         <button
           @click="toggleBaseLayer"
           class="w-10 h-10 flex items-center justify-center rounded-md bg-white text-gray-800 hover:bg-gray-100 shadow"
@@ -1026,9 +1027,6 @@ watch(searchQuery, (query) => {
           <GlobeAltIcon class="h-5 w-5" />
         </button>
       </div>
-
-      <!-- Primary controls: single column, 3 rows -->
-      <div class="flex flex-col gap-2 bg-white/90 p-0 rounded-lg shadow-lg">
         <button
           @click="toggleClickAddMode"
           :class="[

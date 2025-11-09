@@ -2598,6 +2598,8 @@ onBeforeUnmount(() => {
       <div class="relative w-full max-w-sm rounded-lg bg-white shadow-2xl">
         <div v-if="guestStep === 1" class="p-6 sm:p-8">
           <div class="mb-6 text-center sm:mb-8">
+            <!-- Logo -->
+            <img src="../../../assets/logo.png" alt="Campus Navigator" class="mx-auto mb-2 h-12" />
             <h2 class="mb-2 text-xl font-bold text-gray-900 sm:text-2xl">Welcome to Campus Navigator</h2>
             <p class="text-xs text-gray-500 sm:text-sm">Let's get started with your nickname</p>
           </div>
