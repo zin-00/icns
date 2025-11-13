@@ -55,7 +55,6 @@ export function useMapPolygons(map, isAdmin) {
         })
       }
     } catch (error) {
-      // Silently ignore fetch errors for polygons
       // console.error('Error fetching polygons:', error)
       toast.error('Failed to load facility polygons')
     }
@@ -82,8 +81,7 @@ export function useMapPolygons(map, isAdmin) {
         polygonId: polygonData.id
       }).addTo(map.value)
 
-      // NO hover tooltip
-      // NO left-click popup
+
       // Only right-click (contextmenu) opens a small popup with Edit / Delete actions (admin-only)
       polygon.on('contextmenu', (e) => {
         if (!isAdmin) return
@@ -115,8 +113,6 @@ export function useMapPolygons(map, isAdmin) {
     }
   }
 
-  // NOTE: createPolygonPopup is no longer used; polygons now only show context menu on right-click
-  // and do not display any hover tooltip or left-click popup.
 
   // Start drawing polygon
   const startDrawingPolygon = () => {
@@ -130,7 +126,7 @@ export function useMapPolygons(map, isAdmin) {
     }
 
     map.value.getContainer().style.cursor = 'crosshair'
-    toast.info('Click on map to add polygon points. Double-click or press Enter to finish.')
+    // toast.info('Click on map to add polygon points. Double-click or press Enter to finish.')
 
     // Add keyboard handler to allow finishing with Enter or cancelling with Escape
     _keydownHandler = (e) => {
@@ -304,7 +300,8 @@ export function useMapPolygons(map, isAdmin) {
   const enablePolygonEditing = (polygonId, onUpdate) => {
     const polygonObj = polygonInstances.value.find(p => p.id === polygonId)
     if (!polygonObj) {
-      toast.error('Polygon not found')
+        //   toast.error('Polygon not found')
+        console.error('Polygon not found')
       return null
     }
 
@@ -355,7 +352,8 @@ export function useMapPolygons(map, isAdmin) {
       })
 
       marker.on('dragend', () => {
-        toast.success(`Point ${index + 1} position updated`)
+        // toast.success(`Point ${index + 1} position updated`)
+        console.log(`Point ${index + 1} position updated`)
       })
 
       // Right-click to remove point
@@ -430,7 +428,8 @@ export function useMapPolygons(map, isAdmin) {
       })
 
       marker.on('dragend', () => {
-        toast.success(`Point ${insertIndex + 1} position updated`)
+        // toast.success(`Point ${insertIndex + 1} position updated`)
+        console.log(`Point ${insertIndex + 1} position updated`)
       })
 
       marker.on('contextmenu', (e) => {
@@ -441,7 +440,8 @@ export function useMapPolygons(map, isAdmin) {
           marker.remove()
           editPolygonMarkers.value.splice(insertIndex, 1)
           updatePolygonMarkerNumbers()
-          toast.info('Point removed')
+          // toast.info('Point removed')
+            console.log('Point removed')
 
           if (onUpdate) {
             onUpdate(coordinates)
@@ -460,7 +460,7 @@ export function useMapPolygons(map, isAdmin) {
       }
     })
 
-    toast.info('Polygon editing enabled! Drag points to adjust, click edges to add points, right-click to remove.')
+    // toast.info('Polygon editing enabled! Drag points to adjust, click edges to add points, right-click to remove.')
 
     return coordinates
   }

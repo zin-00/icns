@@ -38,5 +38,6 @@ class FacilityPhoto extends Model
         }
 
         return Storage::url($this->path);
+        // return asset('storage/app/public/facility-photos' . $this->path);
     }
 }

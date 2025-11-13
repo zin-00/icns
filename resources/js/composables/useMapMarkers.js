@@ -99,7 +99,8 @@ export function useMapMarkers(map, isAdmin) {
   const enableMarkerDragging = (markerId, onDragEnd) => {
     const markerObj = markerInstances.value.find(m => m._markerData && m._markerData.id === markerId)
     if (!markerObj) {
-      toast.error('Marker not found')
+    //   toast.error('Marker not found')
+      console.error('Marker not found')
       return
     }
 

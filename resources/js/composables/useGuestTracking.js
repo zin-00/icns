@@ -239,7 +239,8 @@ export function useGuestTracking() {
             break
         }
 
-        toast.error(errorMessage)
+        // toast.error(errorMessage)
+        console.warn(errorMessage)
 
         if (!userLocation.value) {
           userLocation.value = { lat: 8.169, lng: 126.003 }

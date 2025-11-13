@@ -188,7 +188,7 @@ export function useGuestRouting(map, userLocation, transportMode) {
     // Fit to route bounds
     map.value.fitBounds(routePolyline.value.getBounds(), { padding: [50, 50] })
 
-    toast.success(`Route via ${routeLabels[routeType]}`)
+    // toast.success(`Route via ${routeLabels[routeType]}`)
   }
 
   // Clear route

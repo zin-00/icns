@@ -33,7 +33,8 @@ export function useGPSTracking(map, guestInfo) {
     }
 
     try {
-      if (userMarker.value && typeof userMarker.value.setLatLng === 'function') {
+      // Check if marker exists and is still on the map
+      if (userMarker.value && typeof userMarker.value.setLatLng === 'function' && map.value.hasLayer(userMarker.value)) {
         userMarker.value.setLatLng([userLocation.value.lat, userLocation.value.lng])
 
         const updatedPopupContent = `
@@ -44,7 +45,7 @@ export function useGPSTracking(map, guestInfo) {
         `
         userMarker.value.setPopupContent(updatedPopupContent)
       } else {
-        console.log('📍 Creating new user marker...')
+        console.log('Creating new user marker...')
 
         userMarker.value = L.marker([userLocation.value.lat, userLocation.value.lng], {
           title: guestInfo.value.nickname || 'You',
@@ -83,7 +84,7 @@ export function useGPSTracking(map, guestInfo) {
 
           console.log('🎯 Marker dragged to:', userLocation.value)
           updateAccuracyCircle(userLocation.value)
-          toast.info('Location updated manually')
+          // toast.info('Location updated manually')
         })
 
         const popupContent = `
@@ -109,7 +110,7 @@ export function useGPSTracking(map, guestInfo) {
         }
       }
     } catch (error) {
-      console.error('❌ Error updating user marker:', error)
+      console.error('Error updating user marker:', error)
       userMarker.value = null
     }
   }
@@ -118,8 +119,14 @@ export function useGPSTracking(map, guestInfo) {
   const updateAccuracyCircle = (location) => {
     if (!map.value || !location.accuracy) return
 
-    if (accuracyCircle.value) {
-      map.value.removeLayer(accuracyCircle.value)
+    // Safely remove existing circle
+    if (accuracyCircle.value && map.value.hasLayer(accuracyCircle.value)) {
+      try {
+        map.value.removeLayer(accuracyCircle.value)
+      } catch (error) {
+        console.warn('Error removing accuracy circle:', error)
+      }
+      accuracyCircle.value = null
     }
 
     if (location.accuracy < 100) {
@@ -147,7 +154,7 @@ export function useGPSTracking(map, guestInfo) {
   const startTracking = () => {
     if (!navigator.geolocation) {
       console.error('Geolocation not supported')
-      toast.error('Geolocation is not supported by your browser')
+    //   toast.error('Geolocation is not supported by your browser')
       return
     }
 
@@ -181,11 +188,15 @@ export function useGPSTracking(map, guestInfo) {
             updateUserMarker()
             updateAccuracyCircle(newLocation)
 
-            if (distance > 10 && map.value) {
-              map.value.panTo([newLocation.lat, newLocation.lng], {
-                animate: true,
-                duration: 1.0
-              })
+            if (distance > 10 && map.value && map.value._zoom) {
+              try {
+                map.value.panTo([newLocation.lat, newLocation.lng], {
+                  animate: true,
+                  duration: 1.0
+                })
+              } catch (error) {
+                console.warn('Error panning map:', error)
+              }
             }
           }
         } else {
@@ -193,14 +204,20 @@ export function useGPSTracking(map, guestInfo) {
           updateUserMarker()
           updateAccuracyCircle(newLocation)
 
-          if (map.value) {
-            map.value.setView([newLocation.lat, newLocation.lng], 17, {
-              animate: true,
-              duration: 1.5
-            })
+          if (map.value && map.value._zoom) {
+            try {
+              map.value.setView([newLocation.lat, newLocation.lng], 17, {
+                animate: true,
+                duration: 1.5
+              })
+            } catch (error) {
+              console.warn('Error setting map view:', error)
+              // Fallback without animation
+              map.value.setView([newLocation.lat, newLocation.lng], 17, { animate: false })
+            }
           }
 
-          toast.success(`GPS acquired! Accuracy: ${Math.round(newLocation.accuracy)}m`)
+        //   toast.success(`GPS acquired! Accuracy: ${Math.round(newLocation.accuracy)}m`)
         }
       },
       (err) => {
@@ -243,8 +260,13 @@ export function useGPSTracking(map, guestInfo) {
       console.log('GPS tracking stopped')
     }
 
-    if (accuracyCircle.value && map.value) {
-      map.value.removeLayer(accuracyCircle.value)
+    // Safely remove accuracy circle
+    if (accuracyCircle.value && map.value && map.value.hasLayer(accuracyCircle.value)) {
+      try {
+        map.value.removeLayer(accuracyCircle.value)
+      } catch (error) {
+        console.warn('Error removing accuracy circle on stop:', error)
+      }
       accuracyCircle.value = null
     }
   }
