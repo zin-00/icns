@@ -939,7 +939,7 @@ const deleteNote = async (noteId) => {
     toast.success('Note deleted successfully!')
   } catch (error) {
     console.error('Error deleting note:', error)
-    toast.error('Failed to delete note')
+    // toast.error('Failed to delete note')
   }
 }
 

@@ -87,9 +87,7 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/map', [RenderController::class, 'renderMap'])->name('map.get');
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
-});
 
-Route::middleware('auth')->group(function () {
     require __DIR__.'/marker/marker.php';
     require __DIR__.'/facility/facility.php';
     require __DIR__.'/feedback/feedback.php';
