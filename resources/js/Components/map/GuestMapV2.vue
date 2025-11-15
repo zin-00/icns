@@ -936,7 +936,7 @@ const deleteNote = async (noteId) => {
     // Remove from local state (this will trigger the watch and redisplay)
     localNotes.value = localNotes.value.filter(note => note.id !== noteId)
 
-    toast.success('Note deleted successfully!')
+    // toast.success('Note deleted successfully!')
   } catch (error) {
     console.error('Error deleting note:', error)
     // toast.error('Failed to delete note')
@@ -1474,7 +1474,7 @@ const loadFacilities = async () => {
     if (response.data && response.data.props && response.data.props.facilities) {
       react.facilities = response.data.props.facilities
 
-      // Clear and re-render all markers
+      // Clear all existing facility markers from map
       facilityMarkers.value.forEach(marker => {
         if (map.value && map.value.hasLayer && map.value.hasLayer(marker)) {
           try {
@@ -1486,14 +1486,125 @@ const loadFacilities = async () => {
       })
       facilityMarkers.value = []
 
-      // Re-add all facility markers
-      react.facilities.forEach(facility => {
-        if (facility.marker && facility.marker.latitude && facility.marker.longitude) {
-          addFacilityMarker(facility, map.value)
-        }
-      })
+      // Re-add all facility markers with full setup (popups, events, geocoding)
+      if (locations.value.length > 0) {
+        for (let i = 0; i < locations.value.length; i++) {
+          const location = locations.value[i]
+          const marker = addFacilityMarker(location, map.value)
 
-      console.log('✓ Facilities loaded and markers refreshed:', react.facilities.length)
+          if (marker) {
+            // Remove any existing popup
+            if (typeof marker.unbindPopup === 'function') {
+              marker.unbindPopup()
+            }
+
+            // Get address from reverse geocoding
+            let address = location.marker?.label || location.department || 'Loading location...'
+
+            // Initial popup with loading text
+            let popupContent = `
+              <div style="padding: 8px; min-width: 200px;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                  <span style="font-size: 20px;">${location.icon}</span>
+                  <strong style="font-size: 14px; color: #1f2937;">${location.name}</strong>
+                </div>
+                <p style="font-size: 12px; color: #6b7280; margin: 0;">${address}</p>
+                <button
+                  onclick="window.dispatchEvent(new CustomEvent('open-facility-panel', { detail: ${location.id} }))"
+                  style="margin-top: 8px; width: 100%; background: #3b82f6; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 500; cursor: pointer;"
+                  onmouseover="this.style.background='#2563eb'"
+                  onmouseout="this.style.background='#3b82f6'"
+                >
+                  View Details
+                </button>
+              </div>
+            `
+
+            marker.bindPopup(popupContent, {
+              closeButton: false,
+              className: 'facility-popup',
+              offset: [0, -15]
+            })
+
+            // Fetch real address in background with staggered delay to avoid rate limiting
+            setTimeout(() => {
+              console.log(`🌍 Geocoding ${location.name} at [${location.lat}, ${location.lng}]`)
+              reverseGeocode(location.lat, location.lng)
+                .then(geocodedAddress => {
+                  if (geocodedAddress) {
+                    address = geocodedAddress
+                    console.log(`✅ Updated popup for ${location.name}: ${address}`)
+                    // Update popup content with real address
+                    popupContent = `
+                      <div style="padding: 8px; min-width: 200px;">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                          <span style="font-size: 20px;">${location.icon}</span>
+                          <strong style="font-size: 14px; color: #1f2937;">${location.name}</strong>
+                        </div>
+                        <p style="font-size: 12px; color: #6b7280; margin: 0;">${address}</p>
+                        <button
+                          onclick="window.dispatchEvent(new CustomEvent('open-facility-panel', { detail: ${location.id} }))"
+                          style="margin-top: 8px; width: 100%; background: #3b82f6; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 500; cursor: pointer;"
+                          onmouseover="this.style.background='#2563eb'"
+                          onmouseout="this.style.background='#3b82f6'"
+                        >
+                          View Details
+                        </button>
+                      </div>
+                    `
+                    marker.setPopupContent(popupContent)
+                  } else {
+                    console.warn(`⚠️ No geocoded address for ${location.name}, keeping fallback`)
+                  }
+                })
+                .catch(err => {
+                  console.error(`❌ Geocoding failed for ${location.name}:`, err)
+                })
+            }, i * 1000)
+
+            // Show popup on hover
+            marker.on('mouseover', function() {
+              this.openPopup()
+            })
+
+            // Keep popup open on hover over popup itself
+            marker.on('popupopen', function() {
+              const popup = this.getPopup()
+              const popupElement = popup.getElement()
+
+              if (popupElement) {
+                popupElement.addEventListener('mouseenter', () => {
+                  marker.openPopup()
+                })
+                popupElement.addEventListener('mouseleave', () => {
+                  marker.closePopup()
+                })
+              }
+            })
+
+            // Close popup when mouse leaves marker
+            marker.on('mouseout', function() {
+              const markerElement = this
+              setTimeout(() => {
+                const popup = markerElement.getPopup()
+                if (popup && popup.getElement()) {
+                  const popupElement = popup.getElement()
+                  if (!popupElement.matches(':hover')) {
+                    markerElement.closePopup()
+                  }
+                }
+              }, 100)
+            })
+
+            // Click opens the sidebar panel
+            marker.on('click', () => {
+              openLocationPanel(location)
+            })
+          }
+        }
+      }
+
+      console.log('✓ Facilities loaded and markers refreshed:', locations.value.length)
     }
   } catch (error) {
     console.error('Error loading facilities:', error)
@@ -1565,6 +1676,55 @@ const handleLocationUpdate = (newLocation) => {
       lastRouteCalculationPosition.value = { lat: newLocation.lat, lng: newLocation.lng }
       createRoute(L.latLng(selectedLocation.value.lat, selectedLocation.value.lng), selectedLocation.value)
     }
+  }
+}
+
+// Reverse geocode coordinates to get address (city and province only)
+const reverseGeocode = async (lat, lng) => {
+  try {
+    console.log(`🌍 Geocoding: ${lat}, ${lng}`)
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+      {
+        headers: {
+          'User-Agent': 'ICNS-Map-Application'
+        }
+      }
+    )
+
+    if (!response.ok) {
+      console.warn(`❌ Geocoding failed with status: ${response.status}`)
+      return null
+    }
+
+    const data = await response.json()
+    console.log(`📍 Geocoding response for ${lat}, ${lng}:`, data.address)
+
+    if (data && data.address) {
+      // Build address with city/municipality and province only
+      const parts = []
+
+      // Get city/municipality/town
+      const city = data.address.municipality || data.address.city || data.address.town || data.address.village
+      if (city) {
+        parts.push(city)
+      }
+
+      // Get province/state
+      const province = data.address.state || data.address.province
+      if (province) {
+        parts.push(province)
+      }
+
+      const result = parts.length > 0 ? parts.join(' • ') : 'Location'
+      console.log(`✅ Geocoded: ${result}`)
+      return result
+    }
+    console.warn('⚠️ No address data in response')
+    return null
+  } catch (error) {
+    console.error('❌ Reverse geocoding error:', error)
+    return null
   }
 }
 
@@ -1701,7 +1861,9 @@ const initializeMap = async () => {
       // Add facility markers
       if (locations.value.length > 0) {
         console.log(`Adding ${locations.value.length} facility markers`)
-        locations.value.forEach(location => {
+
+        for (let i = 0; i < locations.value.length; i++) {
+          const location = locations.value[i]
           const marker = addFacilityMarker(location, map.value)
 
           if (marker) {
@@ -1710,14 +1872,17 @@ const initializeMap = async () => {
               marker.unbindPopup()
             }
 
-            // Add hover popup (like Google Maps preview)
-            const popupContent = `
+            // Get address from reverse geocoding
+            let address = location.marker?.label || location.department || 'Loading location...'
+
+            // Initial popup with loading text
+            let popupContent = `
               <div style="padding: 8px; min-width: 200px;">
                 <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
                   <span style="font-size: 20px;">${location.icon}</span>
                   <strong style="font-size: 14px; color: #1f2937;">${location.name}</strong>
                 </div>
-                <p style="font-size: 12px; color: #6b7280; margin: 0;">${location.address || 'San Francisco • Agusan del Sur'}</p>
+                <p style="font-size: 12px; color: #6b7280; margin: 0;">${address}</p>
                 <button
                   onclick="window.dispatchEvent(new CustomEvent('open-facility-panel', { detail: ${location.id} }))"
                   style="margin-top: 8px; width: 100%; background: #3b82f6; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 500; cursor: pointer;"
@@ -1734,6 +1899,42 @@ const initializeMap = async () => {
               className: 'facility-popup',
               offset: [0, -15]
             })
+
+            // Fetch real address in background with staggered delay
+            setTimeout(() => {
+              console.log(`🌍 Geocoding ${location.name} at [${location.lat}, ${location.lng}]`)
+              reverseGeocode(location.lat, location.lng)
+                .then(geocodedAddress => {
+                  if (geocodedAddress) {
+                    address = geocodedAddress
+                    console.log(`✅ Updated popup for ${location.name}: ${address}`)
+                    // Update popup content with real address
+                    popupContent = `
+                      <div style="padding: 8px; min-width: 200px;">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                          <span style="font-size: 20px;">${location.icon}</span>
+                          <strong style="font-size: 14px; color: #1f2937;">${location.name}</strong>
+                        </div>
+                        <p style="font-size: 12px; color: #6b7280; margin: 0;">${address}</p>
+                        <button
+                          onclick="window.dispatchEvent(new CustomEvent('open-facility-panel', { detail: ${location.id} }))"
+                          style="margin-top: 8px; width: 100%; background: #3b82f6; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 500; cursor: pointer;"
+                          onmouseover="this.style.background='#2563eb'"
+                          onmouseout="this.style.background='#3b82f6'"
+                        >
+                          View Details
+                        </button>
+                      </div>
+                    `
+                    marker.setPopupContent(popupContent)
+                  } else {
+                    console.warn(`⚠️ No geocoded address for ${location.name}, keeping fallback`)
+                  }
+                })
+                .catch(err => {
+                  console.error(`❌ Geocoding failed for ${location.name}:`, err)
+                })
+            }, i * 1000)
 
             // Show popup on hover
             marker.on('mouseover', function() {
@@ -1774,7 +1975,7 @@ const initializeMap = async () => {
               openLocationPanel(location)
             })
           }
-        })
+        }
       }
 
       // Display notes after markers are settled
@@ -2298,8 +2499,8 @@ onBeforeUnmount(() => {
 
             <!-- Info: One note per guest -->
             <div class="text-xs text-gray-500 bg-green-50 border border-green-200 rounded-lg px-3 py-2 space-y-1">
-              <p>💡 You can add one note that will appear on the map. It expires after 24 hours and is stored in your browser ({{ STORAGE_TYPE === 'localStorage' ? 'persists across sessions' : 'session only' }}).</p>
-              <p class="font-semibold text-green-700">📍 Notes appear as purple bubbles above markers. Click the ✕ button to delete!</p>
+              <p>You can add one note that will appear on the map. It expires after 24 hours and is stored in your browser ({{ STORAGE_TYPE === 'localStorage' ? 'persists across sessions' : 'session only' }}).</p>
+              <p class="font-semibold text-green-700">Notes appear as purple bubbles above markers. Click the ✕ button to delete!</p>
             </div>
 
             <!-- Note Input - Hidden by Default -->

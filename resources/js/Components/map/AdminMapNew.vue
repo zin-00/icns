@@ -1184,10 +1184,7 @@ watch(searchQuery, (query) => {
 
             <div>
               <label class="block text-sm font-medium text-gray-900 mb-2">Type</label>
-              <select v-model="markerFormData.type" class="w-full px-3 py-2 border border-gray-300 rounded-md">
-                <option value="" disabled>Select a type</option>
-                <option v-for="type in markerTypes" :key="type" :value="type">{{ type }}</option>
-              </select>
+              <TextInput v-model="markerFormData.type" type="text" placeholder="e.g., Building, Office, Classroom" class="w-full" />
             </div>
           </div>
         </div>

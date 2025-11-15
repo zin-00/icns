@@ -5,21 +5,39 @@ export function useFacilityMarkers() {
   const facilityMarkers = ref([])
   const polygonLayers = ref([])
 
-  // Marker type icons mapping
+// Marker type icons mapping
   const markerTypeIcons = {
-    'academic': '🏫',
+    'academic': '🎓',
     'library': '📚',
     'laboratory': '🔬',
-    'office': '🏢',
+    'office': '💼',
     'cafeteria': '🍽️',
-    'sports': '⚽',
-    'dormitory': '🏠',
-    'parking': '🅿️',
-    'medical': '🏥',
-    'building': '🏢',
-    'classroom': '🏫',
-    'administration': '🏛️',
-    'default': '📍'
+    'sports': '🏃',
+    'dormitory': '🛏️',
+    'parking': '🚗',
+    'medical': '⚕️',
+    'building': '🏛️',
+    'classroom': '✏️',
+    'administration': '📋',
+    'auditorium': '🎭',
+    'gymnasium': '🏀',
+    'theater': '🎬',
+    'studio': '🎨',
+    'workshop': '🔧',
+    'conference': '👥',
+    'entrance': '🚪',
+    'exit': '🚶',
+    'restroom': '🚻',
+    'garden': '🌳',
+    'plaza': '🏞️',
+    'fountain': '⛲',
+    'statue': '🗿',
+    'gate': '🚧',
+    'security': '🔒',
+    'it': '💻',
+    'maintenance': '🛠️',
+    'storage': '📦',
+    'default': '📌'
   }
 
   // Add facility marker to map
