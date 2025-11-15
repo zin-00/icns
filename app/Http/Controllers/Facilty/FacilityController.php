@@ -27,7 +27,10 @@ class FacilityController extends Controller
         // Broadcast facility creation event
         broadcast(new MainEvent('facility', 'create', $facility))->toOthers();
 
-        return redirect()->back()->with('success', 'Facility created successfully.');
+        return response()->json([
+            'message' => 'Facility created successfully.',
+            'facility' => $facility
+        ]);
     }
     public function update(Request $request, $id){
         $facility = Facility::findOrFail($id);
