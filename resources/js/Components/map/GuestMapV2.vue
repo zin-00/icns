@@ -147,7 +147,7 @@ const fetchFacilityPhotos = async (facilityId) => {
   }
 
   try {
-    const response = await axios.get(`/facilities/${facilityId}/photos`)
+    const response = await axios.get(`/pub/facilities/${facilityId}/photos`)
     facilityPhotos.value = {
       ...facilityPhotos.value,
       [facilityId]: Array.isArray(response.data?.photos) ? response.data.photos : []
@@ -341,7 +341,7 @@ const locations = computed(() => {
         !isNaN(parseFloat(facility.marker.latitude))
 
       if (!hasValidMarker) {
-        console.warn('Skipping facility with invalid marker:', facility)
+        // console.warn('Skipping facility with invalid marker:', facility)
       }
       return hasValidMarker
     })
@@ -1096,7 +1096,7 @@ const uploadPhoto = async () => {
       formData.append('caption', photoCaption.value.trim())
     }
 
-    const response = await axios.post(`/facilities/${selectedLocation.value.id}/photos`, formData, {
+    const response = await axios.post(`/pub/facilities/${selectedLocation.value.id}/photos`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
       }
@@ -1169,7 +1169,7 @@ const displayNotesOnMap = () => {
     return
   }
 
-  console.log('📝 displayNotesOnMap: Starting (safe to proceed)')
+//   console.log('displayNotesOnMap: Starting (safe to proceed)')
 
   // First, remove all existing note markers safely
   noteMarkers.value.forEach(nm => {
@@ -1457,7 +1457,7 @@ const refreshPrivateRoutesOnMap = () => {
   })
 
   console.log(`Added ${privateRoutes.value.features.length} campus path layers`)
-  toast.success('Campus paths updated in real-time!')
+//   toast.success('Campus paths updated in real-time!')
 }
 
 // Load and refresh facilities with their markers
@@ -1528,12 +1528,12 @@ const loadFacilities = async () => {
 
             // Fetch real address in background with staggered delay to avoid rate limiting
             setTimeout(() => {
-              console.log(`🌍 Geocoding ${location.name} at [${location.lat}, ${location.lng}]`)
+              console.log(`Geocoding ${location.name} at [${location.lat}, ${location.lng}]`)
               reverseGeocode(location.lat, location.lng)
                 .then(geocodedAddress => {
                   if (geocodedAddress) {
                     address = geocodedAddress
-                    console.log(`✅ Updated popup for ${location.name}: ${address}`)
+                    // console.log(`Updated popup for ${location.name}: ${address}`)
                     // Update popup content with real address
                     popupContent = `
                       <div style="padding: 8px; min-width: 200px;">
@@ -1554,11 +1554,11 @@ const loadFacilities = async () => {
                     `
                     marker.setPopupContent(popupContent)
                   } else {
-                    console.warn(`⚠️ No geocoded address for ${location.name}, keeping fallback`)
+                    console.warn(`No geocoded address for ${location.name}, keeping fallback`)
                   }
                 })
                 .catch(err => {
-                  console.error(`❌ Geocoding failed for ${location.name}:`, err)
+                  console.error(`Geocoding failed for ${location.name}:`, err)
                 })
             }, i * 1000)
 
@@ -1682,48 +1682,26 @@ const handleLocationUpdate = (newLocation) => {
 // Reverse geocode coordinates to get address (city and province only)
 const reverseGeocode = async (lat, lng) => {
   try {
-    console.log(`🌍 Geocoding: ${lat}, ${lng}`)
-    const response = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
-      {
-        headers: {
-          'User-Agent': 'ICNS-Map-Application'
-        }
-      }
-    )
+    // console.log(`Geocoding: ${lat}, ${lng}`)
 
-    if (!response.ok) {
-      console.warn(`❌ Geocoding failed with status: ${response.status}`)
-      return null
+    // Use backend proxy endpoint instead of direct API call
+    const response = await axios.get('/api/geocode/reverse', {
+      params: {
+        lat: lat,
+        lng: lng
+      }
+    })
+
+    if (response.data && response.data.success) {
+      const address = response.data.address
+    //   console.log(`Geocoded: ${address}`)
+      return address
     }
 
-    const data = await response.json()
-    console.log(`📍 Geocoding response for ${lat}, ${lng}:`, data.address)
-
-    if (data && data.address) {
-      // Build address with city/municipality and province only
-      const parts = []
-
-      // Get city/municipality/town
-      const city = data.address.municipality || data.address.city || data.address.town || data.address.village
-      if (city) {
-        parts.push(city)
-      }
-
-      // Get province/state
-      const province = data.address.state || data.address.province
-      if (province) {
-        parts.push(province)
-      }
-
-      const result = parts.length > 0 ? parts.join(' • ') : 'Location'
-      console.log(`✅ Geocoded: ${result}`)
-      return result
-    }
-    console.warn('⚠️ No address data in response')
+    console.warn('No address data in response')
     return null
   } catch (error) {
-    console.error('❌ Reverse geocoding error:', error)
+    console.error('Reverse geocoding error:', error)
     return null
   }
 }
@@ -1856,7 +1834,7 @@ const initializeMap = async () => {
     map.value.addControl(new ControlStack())
 
     map.value.whenReady(() => {
-      console.log('Map is fully loaded and ready')
+    //   console.log('Map is fully loaded and ready')
 
       // Add facility markers
       if (locations.value.length > 0) {
@@ -1902,12 +1880,12 @@ const initializeMap = async () => {
 
             // Fetch real address in background with staggered delay
             setTimeout(() => {
-              console.log(`🌍 Geocoding ${location.name} at [${location.lat}, ${location.lng}]`)
+            //   console.log(`Geocoding ${location.name} at [${location.lat}, ${location.lng}]`)
               reverseGeocode(location.lat, location.lng)
                 .then(geocodedAddress => {
                   if (geocodedAddress) {
                     address = geocodedAddress
-                    console.log(`✅ Updated popup for ${location.name}: ${address}`)
+                    // console.log(`Updated popup for ${location.name}: ${address}`)
                     // Update popup content with real address
                     popupContent = `
                       <div style="padding: 8px; min-width: 200px;">
@@ -1928,11 +1906,11 @@ const initializeMap = async () => {
                     `
                     marker.setPopupContent(popupContent)
                   } else {
-                    console.warn(`⚠️ No geocoded address for ${location.name}, keeping fallback`)
+                    // console.warn(`No geocoded address for ${location.name}, keeping fallback`)
                   }
                 })
                 .catch(err => {
-                  console.error(`❌ Geocoding failed for ${location.name}:`, err)
+                  console.error(`Geocoding failed for ${location.name}:`, err)
                 })
             }, i * 1000)
 

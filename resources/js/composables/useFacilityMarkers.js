@@ -186,7 +186,7 @@ export function useFacilityMarkers() {
       }
     })
 
-    console.log(`Displayed ${polygonLayers.value.length} polygons on map`)
+    // console.log(`Displayed ${polygonLayers.value.length} polygons on map`)
   }
 
   return {

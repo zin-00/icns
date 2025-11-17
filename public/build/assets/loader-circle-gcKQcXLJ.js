@@ -1,4 +1,4 @@
-import{A as n}from"./app-DVResgUD.js";/**
+import{A as n}from"./app-xc4DiFTh.js";/**
  * @license lucide-vue-next v0.545.0 - ISC
  *
  * This source code is licensed under the ISC license.

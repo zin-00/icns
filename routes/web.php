@@ -5,6 +5,7 @@ use App\Http\Controllers\Facilty\FacilityController;
 use App\Http\Controllers\FacilityPhotoController;
 use App\Http\Controllers\FacilityPolygonController;
 use App\Http\Controllers\Feedback\FeedbackController;
+use App\Http\Controllers\GeocodingController;
 use App\Http\Controllers\Guest\GuestController;
 use App\Http\Controllers\Logs\SearchLogsController;
 use App\Http\Controllers\Marker\markerController;
@@ -66,8 +67,8 @@ Route::get('/routes/export/geojson-pub', [RouteController::class, 'exportGeoJSON
 
 // Facility Polygon Routes (Public - for viewing)
 Route::get('/facilities/polygons', [FacilityPolygonController::class, 'index']);
-Route::get('/facilities/{facility}/photos', [FacilityPhotoController::class, 'index']);
-Route::post('/facilities/{facility}/photos', [FacilityPhotoController::class, 'store']);
+Route::get('/pub/facilities/{facility}/photos', [FacilityPhotoController::class, 'index']);
+Route::post('/pub/facilities/{facility}/photos', [FacilityPhotoController::class, 'store']);
 
 Route::post('/guests', [GuestController::class, 'store'])->name('guest');
 
@@ -108,4 +109,6 @@ Route::middleware('auth')->group(function () {
 });
     require __DIR__.'/note/note.php';
 
+// Geocoding API endpoint (accessible by guests)
+Route::get('/api/geocode/reverse', [GeocodingController::class, 'reverseGeocode'])->name('geocode.reverse');
 
